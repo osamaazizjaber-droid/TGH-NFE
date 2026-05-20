@@ -16,48 +16,18 @@ export default function Login() {
     setError(null);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (authError) throw authError;
 
-      const userId = authData.user.id;
-
-      // Check role
-      const { data: adminData, error: adminError } = await supabase
-        .from('admins')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (adminError) throw adminError;
-
-      if (adminData) {
-        navigate('/admin');
-        return;
-      }
-
-      const { data: teacherData, error: teacherError } = await supabase
-        .from('teachers')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (teacherError) throw teacherError;
-
-      if (teacherData) {
-        navigate('/teacher');
-        return;
-      }
-
-      // If no role found, log them out
-      await supabase.auth.signOut();
-      throw new Error(`Your account (ID: ${userId}) is not assigned to any role (Admin or Teacher). Please contact the system administrator to register your user ID.`);
+      // Any authenticated user is an admin — manage access via Supabase Auth dashboard
+      navigate('/admin');
 
     } catch (err) {
-      setError(err.message || 'Failed to login');
+      setError(err.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
