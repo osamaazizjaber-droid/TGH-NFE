@@ -32,6 +32,10 @@ CREATE TABLE students (
   third_name TEXT NOT NULL,
   fourth_name TEXT NOT NULL,
   gender TEXT,
+  governorate TEXT,
+  district TEXT,
+  subdistrict TEXT,
+  village TEXT,
   phone_number TEXT UNIQUE NOT NULL,
   class_grade TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

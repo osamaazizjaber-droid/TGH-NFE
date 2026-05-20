@@ -159,16 +159,29 @@ export default function AdminDashboard() {
         setLoading(true);
         // Basic validation and insert
         try {
-          const insertData = data.map(row => ({
-            student_code: row.student_code || `NFE-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-            first_name: row.first_name || '',
-            second_name: row.second_name || '',
-            third_name: row.third_name || '',
-            fourth_name: row.fourth_name || '',
-            phone_number: row.phone_number || '',
-            class_grade: row.class_grade || '',
-            gender: row.gender || 'Male'
-          }));
+          const insertData = data.map(row => {
+            const getVal = (keys) => {
+              for (const k of keys) {
+                if (row[k] !== undefined && row[k] !== null) return row[k];
+              }
+              return '';
+            };
+
+            return {
+              student_code: getVal(['Student Code', 'student_code', 'code']) || `NFE-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+              first_name: getVal(['First Name', 'first_name', 'firstName']),
+              second_name: getVal(['Second Name', 'second_name', 'secondName']),
+              third_name: getVal(['Third Name', 'third_name', 'thirdName']),
+              fourth_name: getVal(['Fourth Name', 'fourth_name', 'fourthName']),
+              phone_number: String(getVal(['Phone', 'Phone Number', 'phone_number', 'phone']) || ''),
+              class_grade: getVal(['Class/Grade', 'Class / Grade', 'class_grade', 'grade']),
+              gender: getVal(['Gender', 'gender']) || 'Male',
+              governorate: getVal(['Governorate', 'governorate']),
+              district: getVal(['District', 'district']),
+              subdistrict: getVal(['Subdistrict', 'subdistrict']),
+              village: getVal(['Village', 'village'])
+            };
+          });
 
           // Insert all records directly (allowing duplicate phone numbers)
           const { error } = await supabase.from('students').insert(insertData);

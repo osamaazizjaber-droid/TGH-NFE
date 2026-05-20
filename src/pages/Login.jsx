@@ -30,7 +30,9 @@ export default function Login() {
         .from('admins')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
+
+      if (adminError) throw adminError;
 
       if (adminData) {
         navigate('/admin');
@@ -41,7 +43,9 @@ export default function Login() {
         .from('teachers')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
+
+      if (teacherError) throw teacherError;
 
       if (teacherData) {
         navigate('/teacher');
@@ -50,7 +54,7 @@ export default function Login() {
 
       // If no role found, log them out
       await supabase.auth.signOut();
-      throw new Error(`Unauthorized role. UserID: ${userId}. AdminErr: ${adminError?.message || 'none'}. TeacherErr: ${teacherError?.message || 'none'}`);
+      throw new Error(`Your account (ID: ${userId}) is not assigned to any role (Admin or Teacher). Please contact the system administrator to register your user ID.`);
 
     } catch (err) {
       setError(err.message || 'Failed to login');
