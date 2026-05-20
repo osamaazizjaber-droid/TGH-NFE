@@ -47,6 +47,7 @@ export default function AdminDashboard() {
         .from('assessments')
         .select(`
           id, improvement_percentage, performance_status, difference_score, created_at, subject_id, teacher_id,
+          pre_test_result, post_test_result, max_degree,
           students ( student_code, first_name, second_name, third_name, fourth_name, gender )
         `)
         .order('created_at', { ascending: false });
@@ -125,15 +126,15 @@ export default function AdminDashboard() {
       Date: new Date(item.created_at).toLocaleDateString(),
       'Teacher Name': teachers.find(t => t.id === item.teacher_id)?.full_name || 'Unknown',
       'Student Code': item.students?.student_code || 'N/A',
-      'First Name': item.students?.first_name || '',
-      'Second Name': item.students?.second_name || '',
-      'Third Name': item.students?.third_name || '',
-      'Fourth Name': item.students?.fourth_name || '',
+      'Student Name': item.students ? `${item.students.first_name} ${item.students.second_name} ${item.students.third_name} ${item.students.fourth_name}`.trim().replace(/\s+/g, ' ') : 'Unknown',
       Gender: item.students?.gender || 'N/A',
-      Subject: item.subject_id,
-      'Improvement %': item.improvement_percentage,
-      'Difference Score': item.difference_score,
-      Status: item.performance_status
+      Subject: item.subject_id || 'N/A',
+      'Pre-Test': item.pre_test_result !== undefined ? item.pre_test_result : 'N/A',
+      'Post-Test': item.post_test_result !== undefined ? item.post_test_result : 'N/A',
+      'Max Score': item.max_degree !== undefined ? item.max_degree : 'N/A',
+      'Improvement %': item.improvement_percentage !== undefined ? `${item.improvement_percentage}%` : '0%',
+      'Diff. Score': item.difference_score !== undefined ? `+${item.difference_score}` : '0',
+      Status: item.performance_status || 'N/A'
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -583,6 +584,9 @@ export default function AdminDashboard() {
                       <th>Student Name</th>
                       <th>Gender</th>
                       <th>Subject</th>
+                      <th>Pre-Test</th>
+                      <th>Post-Test</th>
+                      <th>Max Score</th>
                       <th>Improvement %</th>
                       <th>Diff. Score</th>
                       <th>Status</th>
@@ -599,6 +603,9 @@ export default function AdminDashboard() {
                         </td>
                         <td>{item.students?.gender || 'N/A'}</td>
                         <td>{item.subject_id}</td>
+                        <td dir="ltr">{item.pre_test_result !== undefined ? item.pre_test_result : '-'}</td>
+                        <td dir="ltr">{item.post_test_result !== undefined ? item.post_test_result : '-'}</td>
+                        <td dir="ltr">{item.max_degree !== undefined ? item.max_degree : '-'}</td>
                         <td className="font-bold text-primary" dir="ltr">{item.improvement_percentage}%</td>
                         <td dir="ltr">+{item.difference_score} pts</td>
                         <td>
@@ -609,7 +616,7 @@ export default function AdminDashboard() {
                       </tr>
                     ))}
                     {improvementsList.length === 0 && (
-                      <tr><td colSpan="8" className="text-center py-4 text-secondary">No assessments recorded yet.</td></tr>
+                      <tr><td colSpan="12" className="text-center py-4 text-secondary">No assessments recorded yet.</td></tr>
                     )}
                   </tbody>
                 </table>
