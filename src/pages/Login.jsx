@@ -16,15 +16,26 @@ export default function Login() {
     setError(null);
 
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (authError) throw authError;
 
-      // Any authenticated user is an admin — manage access via Supabase Auth dashboard
-      navigate('/admin');
+      // Check if the user is a teacher
+      const { data: teacherData } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+
+      if (teacherData) {
+        navigate('/teacher');
+      } else {
+        // Everyone else is an admin (managed via Supabase Auth dashboard)
+        navigate('/admin');
+      }
 
     } catch (err) {
       setError(err.message || 'Invalid email or password. Please try again.');
