@@ -183,15 +183,15 @@ export default function AdminDashboard() {
             };
           });
 
-          // Upsert: insert new records, skip duplicates on phone_number or student_code
+          // Upsert: insert new records, skip duplicates on student_code
           const { data: upserted, error } = await supabase
             .from('students')
-            .upsert(insertData, { onConflict: 'phone_number', ignoreDuplicates: true })
+            .upsert(insertData, { onConflict: 'student_code', ignoreDuplicates: true })
             .select();
           if (error) throw error;
           const imported = upserted?.length ?? 0;
           const skipped = insertData.length - imported;
-          alert(`Import complete!\n✅ ${imported} students imported.${skipped > 0 ? `\n⚠️ ${skipped} skipped (duplicate phone numbers).` : ''}`);
+          alert(`Import complete!\n✅ ${imported} students imported.${skipped > 0 ? `\n⚠️ ${skipped} skipped (duplicate student codes).` : ''}`);
           fetchDashboardData();
         } catch (error) {
           alert('Import failed: ' + error.message);
