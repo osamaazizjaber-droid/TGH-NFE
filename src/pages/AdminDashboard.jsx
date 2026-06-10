@@ -205,7 +205,7 @@ export default function AdminDashboard() {
 
   // Add Teacher State
   const [showTeacherModal, setShowTeacherModal] = useState(false);
-  const [newTeacher, setNewTeacher] = useState({ email: '', password: '', full_name: '' });
+  const [newTeacher, setNewTeacher] = useState({ username: '', password: '', full_name: '' });
   const [teacherLoading, setTeacherLoading] = useState(false);
 
   const handleAddTeacher = async (e) => {
@@ -221,8 +221,10 @@ export default function AdminDashboard() {
       // The only way to create a user while logged in is if we use the same API call or tell the user it requires backend.
       
       // Let's attempt to use the standard signUp. If it fails because a user is logged in, we will show a specific error.
+      // Convert username to internal Supabase email format
+      const internalEmail = newTeacher.username.trim().toLowerCase() + '@tgh.nfe';
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newTeacher.email,
+        email: internalEmail,
         password: newTeacher.password,
       });
 
@@ -231,14 +233,14 @@ export default function AdminDashboard() {
       if (authData?.user) {
         const { error: dbError } = await supabase.from('teachers').insert([{
           id: authData.user.id,
-          email: newTeacher.email,
+          email: internalEmail,
           full_name: newTeacher.full_name
         }]);
         if (dbError) throw dbError;
         
-        alert('Teacher added successfully! Note: If Email Confirmations are enabled in your Supabase settings, they must verify their email before logging in.');
+        alert('Teacher added successfully!');
         setShowTeacherModal(false);
-        setNewTeacher({ email: '', password: '', full_name: '' });
+        setNewTeacher({ username: '', password: '', full_name: '' });
         fetchDashboardData();
       }
     } catch (error) {
@@ -540,7 +542,7 @@ export default function AdminDashboard() {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Email</th>
+                      <th>Username</th>
                       <th>Full Name</th>
                       <th>Joined</th>
                       <th>Actions</th>
@@ -549,7 +551,7 @@ export default function AdminDashboard() {
                   <tbody>
                     {teachers.map(t => (
                       <tr key={t.id}>
-                        <td className="font-medium">{t.email}</td>
+                        <td className="font-medium">{t.email ? t.email.replace('@tgh.nfe', '') : '—'}</td>
                         <td>{t.full_name}</td>
                         <td>{new Date(t.created_at).toLocaleDateString()}</td>
                         <td>
@@ -745,8 +747,8 @@ export default function AdminDashboard() {
                 <input type="text" className="input-field" required value={newTeacher.full_name} onChange={(e) => setNewTeacher({...newTeacher, full_name: e.target.value})} />
               </div>
               <div className="input-group">
-                <label className="input-label">Email</label>
-                <input type="email" className="input-field" required value={newTeacher.email} onChange={(e) => setNewTeacher({...newTeacher, email: e.target.value})} />
+                <label className="input-label">Username</label>
+                <input type="text" className="input-field" required value={newTeacher.username} onChange={(e) => setNewTeacher({...newTeacher, username: e.target.value})} placeholder="e.g. teacher01" autoComplete="username" />
               </div>
               <div className="input-group">
                 <label className="input-label">Password</label>
