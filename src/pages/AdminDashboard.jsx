@@ -265,7 +265,7 @@ export default function AdminDashboard() {
   };
 
   const deleteTeacher = async (id) => {
-    if (window.confirm('Are you sure? This will remove them from the teachers list (but not delete their auth account).')) {
+    if (window.confirm('Are you sure you want to delete this teacher? This will permanently remove them.')) {
       const { error } = await supabase.from('teachers').delete().eq('id', id);
       if (!error) {
         setTeachers(teachers.filter(t => t.id !== id));
