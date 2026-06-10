@@ -17,6 +17,7 @@ const translations = {
     classGrade: 'Class / Grade *',
     gradePlaceholder: 'e.g. Grade 5',
     phone: 'Phone Number *',
+    projectCode: 'Project Code',
     submit: 'Submit Registration',
     submitting: 'Submitting...',
     successTitle: 'Registration Successful!',
@@ -45,6 +46,7 @@ const translations = {
     classGrade: '* الصف / المرحلة الدراسية',
     gradePlaceholder: 'مثال: الصف الخامس',
     phone: '* رقم الهاتف',
+    projectCode: 'رمز المشروع',
     submit: 'تأكيد التسجيل',
     submitting: 'جاري التسجيل...',
     successTitle: 'تم التسجيل بنجاح!',
@@ -82,6 +84,7 @@ export default function PublicRegistration() {
     district: '',
     subdistrict: '',
     village: '',
+    project_code: '',
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -135,7 +138,8 @@ export default function PublicRegistration() {
       setFormData({
         first_name: '', second_name: '', third_name: '', fourth_name: '',
         phone_number: '', class_grade: '', gender: 'Male',
-        governorate: '', district: '', subdistrict: '', village: ''
+        governorate: '', district: '', subdistrict: '', village: '',
+        project_code: ''
       });
     } catch (err) {
       setError(err.message || t('errorDefault'));
@@ -259,9 +263,15 @@ export default function PublicRegistration() {
             </div>
           </div>
 
-          <div className="input-group" style={{ marginBottom: '16px' }}>
-            <label className="input-label">{t('phone')}</label>
-            <input type="tel" name="phone_number" className="input-field" value={formData.phone_number} onChange={handleChange} required placeholder="e.g. +9647XXXXXXXXX" dir="ltr" />
+          <div className="grid grid-cols-2 gap-4" style={{ marginBottom: '16px' }}>
+            <div>
+              <label className="input-label">{t('phone')}</label>
+              <input type="tel" name="phone_number" className="input-field" value={formData.phone_number} onChange={handleChange} required placeholder="e.g. +9647XXXXXXXXX" dir="ltr" />
+            </div>
+            <div>
+              <label className="input-label">{t('projectCode')}</label>
+              <input type="text" name="project_code" className="input-field" value={formData.project_code} onChange={handleChange} placeholder="e.g. TGH-NFE" />
+            </div>
           </div>
 
           <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '24px' }} disabled={loading}>

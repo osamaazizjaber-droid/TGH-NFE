@@ -109,6 +109,7 @@ export default function AdminDashboard() {
       'Gender': s.gender,
       'Class/Grade': s.class_grade,
       'Phone': s.phone_number,
+      'Project Code': s.project_code || '',
       'Governorate': s.governorate || '',
       'District': s.district || '',
       'Subdistrict': s.subdistrict || '',
@@ -189,6 +190,7 @@ export default function AdminDashboard() {
               phone_number: String(getVal(['Phone', 'Phone Number', 'phone_number', 'phone']) || ''),
               class_grade: getVal(['Class/Grade', 'Class / Grade', 'class_grade', 'grade']),
               gender: getVal(['Gender', 'gender']) || 'Male',
+              project_code: getVal(['Project Code', 'project_code', 'projectCode', 'ProjectCode']),
               governorate: getVal(['Governorate', 'governorate']),
               district: getVal(['District', 'district']),
               subdistrict: getVal(['Subdistrict', 'subdistrict']),
@@ -314,7 +316,8 @@ export default function AdminDashboard() {
           fourth_name: editingStudent.fourth_name,
           class_grade: editingStudent.class_grade,
           phone_number: editingStudent.phone_number,
-          gender: editingStudent.gender
+          gender: editingStudent.gender,
+          project_code: editingStudent.project_code
         })
         .eq('id', editingStudent.id);
         
@@ -511,6 +514,7 @@ export default function AdminDashboard() {
                       <th>Code</th>
                       <th>Full Name</th>
                       <th>Class</th>
+                      <th>Project Code</th>
                       <th>Location</th>
                       <th>Phone</th>
                       <th>Actions</th>
@@ -522,6 +526,7 @@ export default function AdminDashboard() {
                         <td><span className="badge" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)' }}>{s.student_code}</span></td>
                         <td className="font-medium">{s.first_name} {s.second_name} {s.third_name} {s.fourth_name}</td>
                         <td>{s.class_grade}</td>
+                        <td>{s.project_code || '—'}</td>
                         <td className="text-secondary">{s.governorate && s.district ? `${s.governorate} - ${s.district}` : 'N/A'}</td>
                         <td>{s.phone_number}</td>
                         <td>
@@ -737,12 +742,18 @@ export default function AdminDashboard() {
                   <input type="text" className="input-field" value={editingStudent.village || ''} onChange={(e) => setEditingStudent({...editingStudent, village: e.target.value})} />
                 </div>
               </div>
-              <div className="input-group">
-                <label className="input-label">Gender</label>
-                <select className="input-field" value={editingStudent.gender} onChange={(e) => setEditingStudent({...editingStudent, gender: e.target.value})}>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="input-label">Gender</label>
+                  <select className="input-field" value={editingStudent.gender} onChange={(e) => setEditingStudent({...editingStudent, gender: e.target.value})}>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="input-label">Project Code</label>
+                  <input type="text" className="input-field" value={editingStudent.project_code || ''} onChange={(e) => setEditingStudent({...editingStudent, project_code: e.target.value})} placeholder="e.g. TGH-NFE" />
+                </div>
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>Cancel</button>

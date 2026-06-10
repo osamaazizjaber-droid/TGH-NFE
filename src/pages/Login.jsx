@@ -16,8 +16,9 @@ export default function Login() {
     setError(null);
 
     try {
-      // Convert username to internal email format for Supabase Auth
-      const email = username.trim().toLowerCase() + '@tgh.nfe';
+      // Convert username to internal email format if it's not already an email
+      const rawUser = username.trim().toLowerCase();
+      const email = rawUser.includes('@') ? rawUser : rawUser + '@tgh.nfe';
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
