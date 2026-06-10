@@ -142,6 +142,18 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "improvements_export.xlsx");
   };
 
+  const exportTeachers = () => {
+    const exportData = teachers.map(t => ({
+      'Username': t.email ? t.email.replace('@tgh.nfe', '') : '',
+      'Full Name': t.full_name,
+      'Joined Date': new Date(t.created_at).toLocaleDateString()
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Teachers");
+    XLSX.writeFile(wb, "teachers_export.xlsx");
+  };
+
   // Excel Import
   const importStudents = async (e) => {
     const file = e.target.files[0];
@@ -532,9 +544,14 @@ export default function AdminDashboard() {
           <div className="fade-in">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold">Teachers Management</h2>
-              <button className="btn btn-primary" onClick={() => setShowTeacherModal(true)}>
-                <Plus size={16} /> Add Teacher
-              </button>
+              <div className="flex gap-2">
+                <button className="btn btn-secondary" onClick={exportTeachers}>
+                  <Download size={16} /> Export Excel
+                </button>
+                <button className="btn btn-primary" onClick={() => setShowTeacherModal(true)}>
+                  <Plus size={16} /> Add Teacher
+                </button>
+              </div>
             </div>
             
             <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
