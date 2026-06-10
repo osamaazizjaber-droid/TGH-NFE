@@ -257,6 +257,10 @@ body[dir="rtl"] {
     margin: 10mm;
   }
   
+  aside, main, .btn, button {
+    display: none !important;
+  }
+  
   body * {
     visibility: hidden;
   }
