@@ -146,6 +146,7 @@ export default function AdminDashboard() {
     const exportData = teachers.map(t => ({
       'Username': t.email ? t.email.replace('@tgh.nfe', '') : '',
       'Full Name': t.full_name,
+      'Password': t.password || '',
       'Joined Date': new Date(t.created_at).toLocaleDateString()
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -246,7 +247,8 @@ export default function AdminDashboard() {
         const { error: dbError } = await supabase.from('teachers').insert([{
           id: authData.user.id,
           email: internalEmail,
-          full_name: newTeacher.full_name
+          full_name: newTeacher.full_name,
+          password: newTeacher.password
         }]);
         if (dbError) throw dbError;
         
