@@ -278,6 +278,60 @@ export default function AdminDashboard() {
     }
   };
 
+  const deleteStudent = async (id) => {
+    if (window.confirm('Are you sure you want to delete this student? This will permanently remove them.')) {
+      const { error } = await supabase.from('students').delete().eq('id', id);
+      if (!error) {
+        setStudents(students.filter(s => s.id !== id));
+        setStats({ ...stats, totalStudents: stats.totalStudents - 1 });
+        alert('Student deleted successfully!');
+      } else {
+        alert('Failed to delete student: ' + error.message);
+      }
+    }
+  };
+
+  const deleteAssessment = async (id) => {
+    if (window.confirm('Are you sure you want to delete this assessment record?')) {
+      const { error } = await supabase.from('assessments').delete().eq('id', id);
+      if (!error) {
+        // Update local state
+        const updatedList = improvementsList.filter(item => item.id !== id);
+        setImprovementsList(updatedList);
+        
+        // Recalculate stats and chartData based on updated assessments list
+        let avgImp = 0;
+        let statusCounts = { 'Excellent': 0, 'Good': 0, 'Needs Improvement': 0 };
+        
+        if (updatedList.length > 0) {
+          const sum = updatedList.reduce((acc, curr) => acc + (curr.improvement_percentage || 0), 0);
+          avgImp = sum / updatedList.length;
+          
+          updatedList.forEach(a => {
+            if (statusCounts[a.performance_status] !== undefined) {
+              statusCounts[a.performance_status]++;
+            }
+          });
+        }
+        
+        setStats(prev => ({
+          ...prev,
+          avgImprovement: avgImp.toFixed(1)
+        }));
+        
+        setChartData([
+          { name: 'Excellent', value: statusCounts['Excellent'] },
+          { name: 'Good', value: statusCounts['Good'] },
+          { name: 'Needs Imp.', value: statusCounts['Needs Improvement'] },
+        ]);
+        
+        alert('Assessment deleted successfully!');
+      } else {
+        alert('Failed to delete assessment: ' + error.message);
+      }
+    }
+  };
+
   const deleteAllStudents = async () => {
     if (window.confirm('WARNING: Are you absolutely sure you want to delete ALL students? This cannot be undone.')) {
       setLoading(true);
@@ -634,6 +688,7 @@ export default function AdminDashboard() {
                       <th>Improvement %</th>
                       <th>Diff. Score</th>
                       <th>Status</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -657,10 +712,15 @@ export default function AdminDashboard() {
                             {item.performance_status}
                           </span>
                         </td>
+                        <td>
+                          <div className="flex gap-2">
+                            <button className="text-danger" title="Delete" onClick={() => deleteAssessment(item.id)}><Trash2 size={16} /></button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                     {improvementsList.length === 0 && (
-                      <tr><td colSpan="12" className="text-center py-4 text-secondary">No assessments recorded yet.</td></tr>
+                      <tr><td colSpan="13" className="text-center py-4 text-secondary">No assessments recorded yet.</td></tr>
                     )}
                   </tbody>
                 </table>
