@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { getGovernorates, getDistricts, getSubdistricts } from '../lib/locations';
@@ -46,9 +46,9 @@ export default function AdminDashboard() {
       const { data: assessments } = await supabase
         .from('assessments')
         .select(`
-          id, improvement_percentage, performance_status, difference_score, created_at, subject_id, teacher_id,
+          id, student_id, improvement_percentage, performance_status, difference_score, created_at, subject_id, teacher_id,
           pre_test_result, post_test_result, max_degree,
-          students ( student_code, first_name, second_name, third_name, fourth_name, gender )
+          students ( id, student_code, first_name, second_name, third_name, fourth_name, gender )
         `)
         .order('created_at', { ascending: false });
       
@@ -396,6 +396,76 @@ export default function AdminDashboard() {
   const uniqueSubjects = [...new Set(improvementsList.map(i => i.subject_id))].filter(Boolean);
   const filteredImprovements = subjectFilter ? improvementsList.filter(i => i.subject_id === subjectFilter) : improvementsList;
 
+  const SUBJECT_COLORS = {
+    'Math': '#3b82f6',      // Blue
+    'Science': '#10b981',   // Emerald
+    'Arabic': '#8b5cf6',    // Purple
+    'English': '#f43f5e',   // Rose
+    'Unknown': '#64748b'    // Slate
+  };
+
+  // Calculate unique tracked students total
+  const totalTrackedStudents = useMemo(() => {
+    const trackedIds = new Set(improvementsList.map(a => a.student_id || a.students?.id).filter(Boolean));
+    return trackedIds.size;
+  }, [improvementsList]);
+
+  // Derive subject statistics from improvementsList
+  const subjectStats = useMemo(() => {
+    const subjectsMap = {};
+    const defaultSubjects = ['Math', 'Science', 'Arabic', 'English'];
+    
+    // Initialize default subjects
+    defaultSubjects.forEach(sub => {
+      subjectsMap[sub] = {
+        subject: sub,
+        trackedStudents: new Set(),
+        totalImprovement: 0,
+        improvementCount: 0,
+        totalAssessments: 0
+      };
+    });
+
+    improvementsList.forEach(item => {
+      const sub = item.subject_id || 'Unknown';
+      if (!subjectsMap[sub]) {
+        subjectsMap[sub] = {
+          subject: sub,
+          trackedStudents: new Set(),
+          totalImprovement: 0,
+          improvementCount: 0,
+          totalAssessments: 0
+        };
+      }
+
+      // Track unique students
+      const studentId = item.student_id || item.students?.id;
+      if (studentId) {
+        subjectsMap[sub].trackedStudents.add(studentId);
+      }
+
+      subjectsMap[sub].totalAssessments++;
+
+      if (item.improvement_percentage !== undefined && item.improvement_percentage !== null) {
+        subjectsMap[sub].totalImprovement += item.improvement_percentage;
+        subjectsMap[sub].improvementCount++;
+      }
+    });
+
+    return Object.keys(subjectsMap).map(sub => {
+      const data = subjectsMap[sub];
+      const avgImp = data.improvementCount > 0 
+        ? parseFloat((data.totalImprovement / data.improvementCount).toFixed(1)) 
+        : 0;
+      return {
+        subject: sub,
+        trackedStudents: data.trackedStudents.size,
+        avgImprovement: avgImp,
+        totalAssessments: data.totalAssessments
+      };
+    });
+  }, [improvementsList]);
+
   return (
     <div className="flex" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-primary)' }}>
       {/* Sidebar */}
@@ -450,14 +520,23 @@ export default function AdminDashboard() {
             <h2 className="text-2xl font-bold mb-6">Dashboard Overview</h2>
             
             {/* Stat Cards */}
-            <div className="grid grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-4 gap-6 mb-8">
               <div className="glass-card flex items-center gap-4">
-                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-primary)' }}>
+                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
                   <Users size={24} />
                 </div>
                 <div>
                   <div className="text-secondary text-sm">Total Students</div>
                   <div className="text-2xl font-bold">{stats.totalStudents}</div>
+                </div>
+              </div>
+              <div className="glass-card flex items-center gap-4">
+                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'rgba(240, 140, 0, 0.1)', color: 'var(--accent-primary)' }}>
+                  <BookOpen size={24} />
+                </div>
+                <div>
+                  <div className="text-secondary text-sm">Tracked Students</div>
+                  <div className="text-2xl font-bold">{totalTrackedStudents}</div>
                 </div>
               </div>
               <div className="glass-card flex items-center gap-4">
@@ -470,7 +549,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="glass-card flex items-center gap-4">
-                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
+                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
                   <TrendingUp size={24} />
                 </div>
                 <div>
@@ -500,7 +579,10 @@ export default function AdminDashboard() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', borderRadius: '8px' }}
+                        itemStyle={{ color: 'var(--text-primary)' }}
+                      />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
@@ -508,18 +590,77 @@ export default function AdminDashboard() {
               </div>
               
               <div className="glass-card">
-                <h3 className="font-bold text-lg mb-4">Recent Improvements (Demo)</h3>
+                <h3 className="font-bold text-lg mb-4">Tracked Students per Subject</h3>
                 <div style={{ height: '300px' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
+                    <BarChart data={subjectStats}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
-                      <XAxis dataKey="name" stroke="var(--text-secondary)" />
-                      <YAxis stroke="var(--text-secondary)" />
-                      <Tooltip cursor={{fill: 'rgba(0,0,0,0.05)'}} />
-                      <Bar dataKey="value" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} />
+                      <XAxis dataKey="subject" stroke="var(--text-secondary)" />
+                      <YAxis stroke="var(--text-secondary)" allowDecimals={false} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', borderRadius: '8px' }}
+                        itemStyle={{ color: 'var(--text-primary)' }}
+                        cursor={{fill: 'rgba(255,255,255,0.05)'}} 
+                      />
+                      <Bar dataKey="trackedStudents" name="Tracked Students" fill="var(--accent-primary)" radius={[4, 4, 0, 0]}>
+                        {subjectStats.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={SUBJECT_COLORS[entry.subject] || '#F08C00'} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
+              </div>
+            </div>
+
+            {/* Subject Tracking Analysis Table */}
+            <div className="glass-card mt-8">
+              <h3 className="font-bold text-lg mb-4 text-primary">Subject Tracking Analysis</h3>
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      <th>Tracked Students</th>
+                      <th>Avg Improvement</th>
+                      <th>Assessments Recorded</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subjectStats.map(item => (
+                      <tr key={item.subject}>
+                        <td className="font-semibold flex items-center gap-2">
+                          <span 
+                            style={{ 
+                              display: 'inline-block', 
+                              width: '12px', 
+                              height: '12px', 
+                              borderRadius: '50%', 
+                              backgroundColor: SUBJECT_COLORS[item.subject] || '#F08C00' 
+                            }} 
+                          />
+                          {item.subject}
+                        </td>
+                        <td>
+                          <span className="badge" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)' }}>
+                            {item.trackedStudents} Students
+                          </span>
+                        </td>
+                        <td>
+                          <span className="font-bold" style={{ color: item.avgImprovement >= 50 ? 'var(--success)' : 'var(--warning)' }}>
+                            {item.avgImprovement}%
+                          </span>
+                        </td>
+                        <td>{item.totalAssessments} records</td>
+                      </tr>
+                    ))}
+                    {subjectStats.length === 0 && (
+                      <tr>
+                        <td colSpan="4" className="text-center py-4 text-secondary">No tracking data available.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
