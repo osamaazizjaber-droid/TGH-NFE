@@ -60,8 +60,6 @@ export default function AdminDashboard() {
       
       let avgImp = 0;
       let statusCounts = { 'Excellent': 0, 'Good': 0, 'Needs Improvement': 0 };
-      const cycles = [];
-      
       if (assessments && assessments.length > 0) {
         setImprovementsList(assessments);
         const sum = assessments.reduce((acc, curr) => acc + (curr.improvement_percentage || 0), 0);
@@ -72,62 +70,7 @@ export default function AdminDashboard() {
             statusCounts[a.performance_status]++;
           }
         });
-
-        // Compute incomplete cycles
-        const grouped = {};
-        assessments.forEach(item => {
-          const student = item.students;
-          if (!student) return;
-          const studentId = student.id;
-          const subject = item.subject_id;
-          const key = `${studentId}_${subject}`;
-          
-          if (!grouped[key]) {
-            grouped[key] = {
-              student,
-              subject,
-              pre_test: null,
-              post_test: null,
-              max_degree: item.max_degree,
-              created_at: item.created_at,
-              teacher_id: item.teacher_id,
-              rows: []
-            };
-          }
-          grouped[key].rows.push(item);
-          if (item.pre_test_result !== null && item.pre_test_result !== undefined && item.pre_test_result !== '') {
-            grouped[key].pre_test = item.pre_test_result;
-          }
-          if (item.post_test_result !== null && item.post_test_result !== undefined && item.post_test_result !== '') {
-            grouped[key].post_test = item.post_test_result;
-          }
-          if (new Date(item.created_at) > new Date(grouped[key].created_at)) {
-            grouped[key].created_at = item.created_at;
-            grouped[key].teacher_id = item.teacher_id;
-            grouped[key].max_degree = item.max_degree;
-          }
-        });
-
-        Object.values(grouped).forEach(g => {
-          const hasPre = g.pre_test !== null && g.pre_test !== undefined && g.pre_test !== '';
-          const hasPost = g.post_test !== null && g.post_test !== undefined && g.post_test !== '';
-          if (hasPre && !hasPost) {
-            cycles.push({
-              ...g,
-              type: 'Pre-Test Only',
-              score: g.pre_test
-            });
-          } else if (!hasPre && hasPost) {
-            cycles.push({
-              ...g,
-              type: 'Post-Test Only',
-              score: g.post_test
-            });
-          }
-        });
       }
-
-      setIncompleteCycles(cycles);
 
       setStats({
         totalStudents: studentCount || 0,
@@ -144,6 +87,76 @@ export default function AdminDashboard() {
       // Fetch lists
       const { data: studentsData } = await supabase.from('students').select('*').order('created_at', { ascending: false }).limit(1000);
       if (studentsData) setStudents(studentsData);
+
+      // Compute incomplete cycles (including Not Started / Missed subjects)
+      const cycles = [];
+      const subjectsList = ['Math', 'Science', 'Arabic', 'English'];
+      const studentList = studentsData || [];
+      const assessmentsList = assessments || [];
+
+      studentList.forEach(student => {
+        subjectsList.forEach(subject => {
+          const studentAssessments = assessmentsList.filter(a => 
+            (a.student_id === student.id || a.students?.id === student.id) && a.subject_id === subject
+          );
+
+          let pre_test = null;
+          let post_test = null;
+          let max_degree = 100;
+          let created_at = student.created_at;
+          let teacher_id = null;
+
+          studentAssessments.forEach(item => {
+            if (item.pre_test_result !== null && item.pre_test_result !== undefined && item.pre_test_result !== '') {
+              pre_test = item.pre_test_result;
+            }
+            if (item.post_test_result !== null && item.post_test_result !== undefined && item.post_test_result !== '') {
+              post_test = item.post_test_result;
+            }
+            if (!teacher_id || new Date(item.created_at) > new Date(created_at)) {
+              created_at = item.created_at;
+              teacher_id = item.teacher_id;
+              max_degree = item.max_degree;
+            }
+          });
+
+          const hasPre = pre_test !== null && pre_test !== undefined && pre_test !== '';
+          const hasPost = post_test !== null && post_test !== undefined && post_test !== '';
+
+          if (hasPre && !hasPost) {
+            cycles.push({
+              student,
+              subject,
+              type: 'Pre-Test Only',
+              score: pre_test,
+              max_degree,
+              created_at,
+              teacher_id
+            });
+          } else if (!hasPre && hasPost) {
+            cycles.push({
+              student,
+              subject,
+              type: 'Post-Test Only',
+              score: post_test,
+              max_degree,
+              created_at,
+              teacher_id
+            });
+          } else if (!hasPre && !hasPost) {
+            cycles.push({
+              student,
+              subject,
+              type: 'Not Started',
+              score: '—',
+              max_degree,
+              created_at,
+              teacher_id: null
+            });
+          }
+        });
+      });
+      setIncompleteCycles(cycles);
 
       const { data: teachersData } = await supabase.from('teachers').select('*').order('created_at', { ascending: false });
       if (teachersData) setTeachers(teachersData);
@@ -1013,6 +1026,7 @@ export default function AdminDashboard() {
                   <option value="">All Incomplete Types</option>
                   <option value="Pre-Test Only">Pre-Test Only</option>
                   <option value="Post-Test Only">Post-Test Only</option>
+                  <option value="Not Started">Not Started</option>
                 </select>
 
                 {/* Export Excel Button */}
@@ -1052,8 +1066,10 @@ export default function AdminDashboard() {
                         <td>
                           {item.type === 'Pre-Test Only' ? (
                             <span className="badge badge-warning">Missing Post-Test</span>
-                          ) : (
+                          ) : item.type === 'Post-Test Only' ? (
                             <span className="badge badge-danger">Missing Pre-Test</span>
+                          ) : (
+                            <span className="badge badge-danger">Not Started</span>
                           )}
                         </td>
                         <td dir="ltr" className="font-bold text-primary">{item.score}</td>
