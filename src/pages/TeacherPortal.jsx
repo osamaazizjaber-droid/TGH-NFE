@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Search, LogOut, CheckCircle, AlertCircle, Globe, Camera, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +34,12 @@ const translations = {
     saving: 'Saving...',
     noStudentSelected: 'No Student Selected',
     pleaseSearch: 'Please search and select a student from the side panel to record their assessment.',
-    pts: 'pts'
+    pts: 'pts',
+    testType: 'Test Type',
+    score: 'Score',
+    allSubjectsCompleted: 'All assessment cycles for this student have been completed!',
+    metricsPlaceholder: 'Calculated metrics will appear once both Pre-Test and Post-Test results are recorded.',
+    submit: 'Submit Assessment'
   },
   ar: {
     portalTitle: 'بوابة المعلم',
@@ -65,7 +70,12 @@ const translations = {
     saving: 'جاري الحفظ...',
     noStudentSelected: 'لم يتم اختيار طالب',
     pleaseSearch: 'يرجى البحث واختيار طالب من القائمة الجانبية لتسجيل تقييمه.',
-    pts: 'نقطة'
+    pts: 'نقطة',
+    testType: 'نوع الاختبار',
+    score: 'الدرجة',
+    allSubjectsCompleted: 'تم إكمال جميع دورات التقييم لهذا الطالب!',
+    metricsPlaceholder: 'ستظهر المقاييس المحسوبة بمجرد تسجيل نتائج الاختبارين القبلي والبعدي.',
+    submit: 'تسجيل التقييم'
   }
 };
 
@@ -84,9 +94,10 @@ export default function TeacherPortal() {
   const [assessmentData, setAssessmentData] = useState({
     subject: 'Math',
     max_degree: 100,
-    pre_test: 0,
-    post_test: 0,
+    score: 0,
   });
+  const [selectedTestType, setSelectedTestType] = useState('pre');
+  const [existingAssessments, setExistingAssessments] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -120,7 +131,73 @@ export default function TeacherPortal() {
     };
   }, [isScanning]);
 
-  // Search students
+  // Fetch student's existing assessments on selection
+  useEffect(() => {
+    if (!selectedStudent) {
+      setExistingAssessments([]);
+      return;
+    }
+    const fetchExisting = async () => {
+      const { data, error } = await supabase
+        .from('assessments')
+        .select('*')
+        .eq('student_id', selectedStudent.id);
+      if (!error && data) {
+        setExistingAssessments(data);
+      }
+    };
+    fetchExisting();
+  }, [selectedStudent]);
+
+  // Determine completion status of subjects
+  const subjectsList = ['Math', 'Science', 'Arabic', 'English'];
+  const subjectsStatus = useMemo(() => {
+    const status = {};
+    subjectsList.forEach(sub => {
+      status[sub] = { pre: false, post: false, row: null };
+    });
+    existingAssessments.forEach(a => {
+      const sub = a.subject_id;
+      if (status[sub]) {
+        if (a.pre_test_result !== null && a.pre_test_result !== undefined && a.pre_test_result !== '') {
+          status[sub].pre = true;
+        }
+        if (a.post_test_result !== null && a.post_test_result !== undefined && a.post_test_result !== '') {
+          status[sub].post = true;
+        }
+        status[sub].row = a;
+      }
+    });
+    return status;
+  }, [existingAssessments]);
+
+  // Set default subject and test type based on completion status
+  useEffect(() => {
+    const firstAvailableSubject = subjectsList.find(sub => {
+      const status = subjectsStatus[sub];
+      return !(status.pre && status.post);
+    });
+
+    if (firstAvailableSubject) {
+      const currentStatus = subjectsStatus[assessmentData.subject];
+      if (!currentStatus || (currentStatus.pre && currentStatus.post)) {
+        setAssessmentData(prev => ({ ...prev, subject: firstAvailableSubject }));
+      }
+    }
+  }, [subjectsStatus]);
+
+  useEffect(() => {
+    const currentStatus = subjectsStatus[assessmentData.subject];
+    if (currentStatus) {
+      if (!currentStatus.pre) {
+        setSelectedTestType('pre');
+      } else if (!currentStatus.post) {
+        setSelectedTestType('post');
+      }
+    }
+  }, [assessmentData.subject, subjectsStatus]);
+
+  // Search students (exclude fully completed ones)
   useEffect(() => {
     const fetchStudents = async () => {
       if (!searchQuery.trim()) {
@@ -128,14 +205,38 @@ export default function TeacherPortal() {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('*')
         .or(`student_code.ilike.%${searchQuery}%,first_name.ilike.%${searchQuery}%`)
-        .limit(5);
+        .limit(10);
         
-      if (!error && data) {
-        setStudents(data);
+      if (!studentsError && studentsData) {
+        const studentIds = studentsData.map(s => s.id);
+        if (studentIds.length > 0) {
+          const { data: assessmentsData, error: assessmentsError } = await supabase
+            .from('assessments')
+            .select('*')
+            .in('student_id', studentIds);
+
+          if (!assessmentsError && assessmentsData) {
+            const filtered = studentsData.filter(student => {
+              const studentAssessments = assessmentsData.filter(a => a.student_id === student.id);
+              const completedSubjectsCount = subjectsList.filter(subject => {
+                const subAssessments = studentAssessments.filter(a => a.subject_id === subject);
+                const hasPre = subAssessments.some(a => a.pre_test_result !== null && a.pre_test_result !== undefined && a.pre_test_result !== '');
+                const hasPost = subAssessments.some(a => a.post_test_result !== null && a.post_test_result !== undefined && a.post_test_result !== '');
+                return hasPre && hasPost;
+              }).length;
+              return completedSubjectsCount < subjectsList.length;
+            });
+            setStudents(filtered);
+          } else {
+            setStudents(studentsData);
+          }
+        } else {
+          setStudents([]);
+        }
       }
     };
     
@@ -155,19 +256,44 @@ export default function TeacherPortal() {
     setAssessmentData({ ...assessmentData, [e.target.name]: e.target.value });
   };
 
-  const calculateMetrics = () => {
+  const calculateLiveMetrics = () => {
+    const status = subjectsStatus[assessmentData.subject];
+    const existingRow = status?.row;
+    const score = parseFloat(assessmentData.score) || 0;
     const max = parseFloat(assessmentData.max_degree) || 1;
-    const pre = parseFloat(assessmentData.pre_test) || 0;
-    const post = parseFloat(assessmentData.post_test) || 0;
-    
-    const diff = post - pre;
-    const improvementPercent = (diff / max) * 100;
-    
-    let status = 'needsImprovement';
-    if (improvementPercent >= 80) status = 'excellent';
-    else if (improvementPercent >= 50) status = 'good';
 
-    return { diff, improvementPercent: improvementPercent.toFixed(1), status };
+    let pre = null;
+    let post = null;
+
+    if (selectedTestType === 'pre') {
+      pre = score;
+      if (existingRow && existingRow.post_test_result !== null && existingRow.post_test_result !== undefined && existingRow.post_test_result !== '') {
+        post = existingRow.post_test_result;
+      }
+    } else {
+      post = score;
+      if (existingRow && existingRow.pre_test_result !== null && existingRow.pre_test_result !== undefined && existingRow.pre_test_result !== '') {
+        pre = existingRow.pre_test_result;
+      }
+    }
+
+    if (pre !== null && post !== null) {
+      const diff = post - pre;
+      const improvementPercent = (diff / max) * 100;
+      
+      let statusText = 'needsImprovement';
+      if (improvementPercent >= 80) statusText = 'excellent';
+      else if (improvementPercent >= 50) statusText = 'good';
+
+      return { 
+        diff, 
+        improvementPercent: improvementPercent.toFixed(1), 
+        status: statusText, 
+        complete: true 
+      };
+    }
+
+    return { complete: false };
   };
 
   const submitAssessment = async (e) => {
@@ -182,26 +308,106 @@ export default function TeacherPortal() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user) throw new Error("Not authenticated");
 
-      const metrics = calculateMetrics();
+      const subject = assessmentData.subject;
+      const testType = selectedTestType;
+      const score = parseFloat(assessmentData.score);
+      const max = parseFloat(assessmentData.max_degree);
+      
+      if (isNaN(score) || score < 0 || score > max) {
+        throw new Error(lang === 'ar' ? 'الرجاء إدخال درجة صالحة' : 'Please enter a valid score');
+      }
 
-      const { error: insertError } = await supabase
-        .from('assessments')
-        .insert([{
-          student_id: selectedStudent.id,
-          teacher_id: userData.user.id,
-          subject_id: assessmentData.subject,
-          max_degree: parseFloat(assessmentData.max_degree),
-          pre_test_result: parseFloat(assessmentData.pre_test),
-          post_test_result: parseFloat(assessmentData.post_test),
-          improvement_percentage: parseFloat(metrics.improvementPercent),
-          difference_score: metrics.diff,
-          performance_status: metrics.status === 'excellent' ? 'Excellent' : metrics.status === 'good' ? 'Good' : 'Needs Improvement'
-        }]);
+      const status = subjectsStatus[subject];
+      const existingRow = status?.row;
 
-      if (insertError) throw insertError;
+      if (testType === 'pre') {
+        if (status?.pre) throw new Error("Pre-Test already recorded");
+        
+        if (existingRow) {
+          const diff = existingRow.post_test_result - score;
+          const improvementPercent = (diff / existingRow.max_degree) * 100;
+          let perfStatus = 'Needs Improvement';
+          if (improvementPercent >= 80) perfStatus = 'Excellent';
+          else if (improvementPercent >= 50) perfStatus = 'Good';
+
+          const { error: updateError } = await supabase
+            .from('assessments')
+            .update({
+              pre_test_result: score,
+              improvement_percentage: parseFloat(improvementPercent.toFixed(1)),
+              difference_score: diff,
+              performance_status: perfStatus
+            })
+            .eq('id', existingRow.id);
+
+          if (updateError) throw updateError;
+        } else {
+          const { error: insertError } = await supabase
+            .from('assessments')
+            .insert([{
+              student_id: selectedStudent.id,
+              teacher_id: userData.user.id,
+              subject_id: subject,
+              max_degree: max,
+              pre_test_result: score,
+              post_test_result: null,
+              improvement_percentage: null,
+              difference_score: null,
+              performance_status: null
+            }]);
+
+          if (insertError) throw insertError;
+        }
+      } else {
+        if (status?.post) throw new Error("Post-Test already recorded");
+
+        if (existingRow) {
+          const diff = score - existingRow.pre_test_result;
+          const improvementPercent = (diff / existingRow.max_degree) * 100;
+          let perfStatus = 'Needs Improvement';
+          if (improvementPercent >= 80) perfStatus = 'Excellent';
+          else if (improvementPercent >= 50) perfStatus = 'Good';
+
+          const { error: updateError } = await supabase
+            .from('assessments')
+            .update({
+              post_test_result: score,
+              improvement_percentage: parseFloat(improvementPercent.toFixed(1)),
+              difference_score: diff,
+              performance_status: perfStatus
+            })
+            .eq('id', existingRow.id);
+
+          if (updateError) throw updateError;
+        } else {
+          const { error: insertError } = await supabase
+            .from('assessments')
+            .insert([{
+              student_id: selectedStudent.id,
+              teacher_id: userData.user.id,
+              subject_id: subject,
+              max_degree: max,
+              pre_test_result: null,
+              post_test_result: score,
+              improvement_percentage: null,
+              difference_score: null,
+              performance_status: null
+            }]);
+
+          if (insertError) throw insertError;
+        }
+      }
       
       setSubmitSuccess(true);
-      setAssessmentData({ ...assessmentData, pre_test: 0, post_test: 0 });
+      setAssessmentData(prev => ({ ...prev, score: 0 }));
+      
+      const { data: updatedData } = await supabase
+        .from('assessments')
+        .select('*')
+        .eq('student_id', selectedStudent.id);
+      if (updatedData) {
+        setExistingAssessments(updatedData);
+      }
     } catch (err) {
       setError(err.message || 'Failed to submit assessment.');
     } finally {
@@ -209,7 +415,9 @@ export default function TeacherPortal() {
     }
   };
 
-  const metrics = calculateMetrics();
+  const metrics = calculateLiveMetrics();
+
+  const allCompleted = selectedStudent && subjectsList.every(sub => subjectsStatus[sub]?.pre && subjectsStatus[sub]?.post);
 
   const toggleLanguage = () => {
     setLang(lang === 'ar' ? 'en' : 'ar');
@@ -344,52 +552,76 @@ export default function TeacherPortal() {
                   </div>
                 )}
 
-                <form onSubmit={submitAssessment}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
-                    <div>
-                      <label className="input-label">{t('subject')}</label>
-                      <select name="subject" className="input-field" value={assessmentData.subject} onChange={handleAssessmentChange}>
-                        <option value="Math">{t('math')}</option>
-                        <option value="Science">{t('science')}</option>
-                        <option value="Arabic">{t('arabic')}</option>
-                        <option value="English">{t('english')}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="input-label">{t('maxDegree')}</label>
-                      <input type="number" name="max_degree" className="input-field" min="1" value={assessmentData.max_degree} onChange={handleAssessmentChange} required />
-                    </div>
+                {allCompleted ? (
+                  <div className="flex flex-col items-center gap-4 text-center py-8" style={{ color: 'var(--success)', border: '1px dashed var(--success)', borderRadius: '12px', padding: '24px' }}>
+                    <CheckCircle size={48} />
+                    <p className="font-bold text-lg">{t('allSubjectsCompleted')}</p>
                   </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-                    <div>
-                      <label className="input-label">{t('preTest')}</label>
-                      <input type="number" name="pre_test" className="input-field" step="0.1" max={assessmentData.max_degree} value={assessmentData.pre_test} onChange={handleAssessmentChange} required />
-                    </div>
-                    <div>
-                      <label className="input-label">{t('postTest')}</label>
-                      <input type="number" name="post_test" className="input-field" step="0.1" max={assessmentData.max_degree} value={assessmentData.post_test} onChange={handleAssessmentChange} required />
-                    </div>
-                  </div>
-
-                  <div className="p-4 mb-6" style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                    <h3 className="font-bold text-sm mb-3 text-secondary">{t('calculatedMetrics')}</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                ) : (
+                  <form onSubmit={submitAssessment}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
                       <div>
-                        <div className="text-secondary text-sm">{t('improvement')}</div>
-                        <div className="font-bold text-lg text-primary" dir="ltr">{metrics.improvementPercent}%</div>
+                        <label className="input-label">{t('subject')}</label>
+                        <select name="subject" className="input-field" value={assessmentData.subject} onChange={handleAssessmentChange}>
+                          {(!subjectsStatus['Math']?.pre || !subjectsStatus['Math']?.post) && <option value="Math">{t('math')}</option>}
+                          {(!subjectsStatus['Science']?.pre || !subjectsStatus['Science']?.post) && <option value="Science">{t('science')}</option>}
+                          {(!subjectsStatus['Arabic']?.pre || !subjectsStatus['Arabic']?.post) && <option value="Arabic">{t('arabic')}</option>}
+                          {(!subjectsStatus['English']?.pre || !subjectsStatus['English']?.post) && <option value="English">{t('english')}</option>}
+                        </select>
                       </div>
-                      <div>
-                        <div className="text-secondary text-sm">{t('difference')}</div>
-                        <div className="font-bold text-lg text-primary" dir="ltr">+{metrics.diff} {t('pts')}</div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="input-label">{t('maxDegree')}</label>
+                          <input type="number" name="max_degree" className="input-field" min="1" value={assessmentData.max_degree} onChange={handleAssessmentChange} required />
+                        </div>
+                        <div>
+                          <label className="input-label">{t('testType')}</label>
+                          <select name="test_type" className="input-field" value={selectedTestType} onChange={(e) => setSelectedTestType(e.target.value)}>
+                            {!subjectsStatus[assessmentData.subject]?.pre && <option value="pre">{t('preTest')}</option>}
+                            {!subjectsStatus[assessmentData.subject]?.post && <option value="post">{t('postTest')}</option>}
+                          </select>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '14px', fontSize: '1.1rem' }} disabled={loading}>
-                    {loading ? '...' : t('submit')}
-                  </button>
-                </form>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+                      <div>
+                        <label className="input-label">{selectedTestType === 'pre' ? t('preTest') : t('postTest')}</label>
+                        <input type="number" name="score" className="input-field" step="0.1" max={assessmentData.max_degree} value={assessmentData.score || ''} onChange={handleAssessmentChange} required />
+                      </div>
+                    </div>
+
+                    <div className="p-4 mb-6" style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                      <h3 className="font-bold text-sm mb-3 text-secondary">{t('calculatedMetrics')}</h3>
+                      {metrics.complete ? (
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <div className="text-secondary text-sm">{t('improvement')}</div>
+                            <div className="font-bold text-lg text-primary" dir="ltr">{metrics.improvementPercent}%</div>
+                          </div>
+                          <div>
+                            <div className="text-secondary text-sm">{t('difference')}</div>
+                            <div className="font-bold text-lg text-primary" dir="ltr">+{metrics.diff} {t('pts')}</div>
+                          </div>
+                          <div>
+                            <div className="text-secondary text-sm">{t('status')}</div>
+                            <span className={`badge ${metrics.status === 'excellent' ? 'badge-success' : metrics.status === 'good' ? 'badge-warning' : 'badge-danger'}`} style={{ marginTop: '4px' }}>
+                              {t(metrics.status)}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-secondary text-sm" style={{ opacity: 0.8 }}>
+                          {t('metricsPlaceholder')}
+                        </div>
+                      )}
+                    </div>
+
+                    <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '14px', fontSize: '1.1rem' }} disabled={loading}>
+                      {loading ? '...' : t('submit')}
+                    </button>
+                  </form>
+                )}
             </div>
           )}
         </div>

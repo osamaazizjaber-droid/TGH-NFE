@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getGovernorates, getDistricts, getSubdistricts } from '../lib/locations';
 import { 
   Users, BookOpen, TrendingUp, LogOut, Download, Upload, 
-  Trash2, Edit, Plus, Printer 
+  Trash2, Edit, Plus, Printer, AlertCircle, Search
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Barcode from 'react-barcode';
@@ -29,6 +29,12 @@ export default function AdminDashboard() {
   const [gradeFilter, setGradeFilter] = useState('');
   const [improvementsList, setImprovementsList] = useState([]);
   const [subjectFilter, setSubjectFilter] = useState('');
+  
+  // Incomplete Cycles States
+  const [incompleteCycles, setIncompleteCycles] = useState([]);
+  const [incompleteSearchQuery, setIncompleteSearchQuery] = useState('');
+  const [incompleteSubjectFilter, setIncompleteSubjectFilter] = useState('');
+  const [incompleteTypeFilter, setIncompleteTypeFilter] = useState('');
 
   const navigate = useNavigate();
 
@@ -48,12 +54,13 @@ export default function AdminDashboard() {
         .select(`
           id, student_id, improvement_percentage, performance_status, difference_score, created_at, subject_id, teacher_id,
           pre_test_result, post_test_result, max_degree,
-          students ( id, student_code, first_name, second_name, third_name, fourth_name, gender )
+          students ( id, student_code, first_name, second_name, third_name, fourth_name, gender, class_grade )
         `)
         .order('created_at', { ascending: false });
       
       let avgImp = 0;
       let statusCounts = { 'Excellent': 0, 'Good': 0, 'Needs Improvement': 0 };
+      const cycles = [];
       
       if (assessments && assessments.length > 0) {
         setImprovementsList(assessments);
@@ -65,7 +72,62 @@ export default function AdminDashboard() {
             statusCounts[a.performance_status]++;
           }
         });
+
+        // Compute incomplete cycles
+        const grouped = {};
+        assessments.forEach(item => {
+          const student = item.students;
+          if (!student) return;
+          const studentId = student.id;
+          const subject = item.subject_id;
+          const key = `${studentId}_${subject}`;
+          
+          if (!grouped[key]) {
+            grouped[key] = {
+              student,
+              subject,
+              pre_test: null,
+              post_test: null,
+              max_degree: item.max_degree,
+              created_at: item.created_at,
+              teacher_id: item.teacher_id,
+              rows: []
+            };
+          }
+          grouped[key].rows.push(item);
+          if (item.pre_test_result !== null && item.pre_test_result !== undefined && item.pre_test_result !== '') {
+            grouped[key].pre_test = item.pre_test_result;
+          }
+          if (item.post_test_result !== null && item.post_test_result !== undefined && item.post_test_result !== '') {
+            grouped[key].post_test = item.post_test_result;
+          }
+          if (new Date(item.created_at) > new Date(grouped[key].created_at)) {
+            grouped[key].created_at = item.created_at;
+            grouped[key].teacher_id = item.teacher_id;
+            grouped[key].max_degree = item.max_degree;
+          }
+        });
+
+        Object.values(grouped).forEach(g => {
+          const hasPre = g.pre_test !== null && g.pre_test !== undefined && g.pre_test !== '';
+          const hasPost = g.post_test !== null && g.post_test !== undefined && g.post_test !== '';
+          if (hasPre && !hasPost) {
+            cycles.push({
+              ...g,
+              type: 'Pre-Test Only',
+              score: g.pre_test
+            });
+          } else if (!hasPre && hasPost) {
+            cycles.push({
+              ...g,
+              type: 'Post-Test Only',
+              score: g.post_test
+            });
+          }
+        });
       }
+
+      setIncompleteCycles(cycles);
 
       setStats({
         totalStudents: studentCount || 0,
@@ -154,6 +216,25 @@ export default function AdminDashboard() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Teachers");
     XLSX.writeFile(wb, "teachers_export.xlsx");
+  };
+
+  const exportIncompleteCycles = () => {
+    const exportData = filteredIncompleteCycles.map(item => ({
+      'Student Code': item.student?.student_code || 'N/A',
+      'Student Name': item.student ? `${item.student.first_name} ${item.student.second_name} ${item.student.third_name} ${item.student.fourth_name}`.trim().replace(/\s+/g, ' ') : 'Unknown',
+      'Gender': item.student?.gender || 'N/A',
+      'Class/Grade': item.student?.class_grade || 'N/A',
+      'Subject': item.subject || 'N/A',
+      'Incomplete Type': item.type,
+      'Recorded Score': item.score,
+      'Max Score': item.max_degree,
+      'Date Recorded': new Date(item.created_at).toLocaleDateString(),
+      'Teacher Name': teachers.find(t => t.id === item.teacher_id)?.full_name || 'Unknown'
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Incomplete Cycles");
+    XLSX.writeFile(wb, "incomplete_cycles_report.xlsx");
   };
 
   // Excel Import
@@ -396,6 +477,21 @@ export default function AdminDashboard() {
   const uniqueSubjects = [...new Set(improvementsList.map(i => i.subject_id))].filter(Boolean);
   const filteredImprovements = subjectFilter ? improvementsList.filter(i => i.subject_id === subjectFilter) : improvementsList;
 
+  const filteredIncompleteCycles = useMemo(() => {
+    return incompleteCycles.filter(item => {
+      const student = item.student;
+      const name = `${student.first_name} ${student.second_name} ${student.third_name} ${student.fourth_name}`.toLowerCase();
+      const code = (student.student_code || '').toLowerCase();
+      const matchesSearch = name.includes(incompleteSearchQuery.toLowerCase()) || code.includes(incompleteSearchQuery.toLowerCase());
+      
+      const matchesSubject = !incompleteSubjectFilter || item.subject === incompleteSubjectFilter;
+      
+      const matchesType = !incompleteTypeFilter || item.type === incompleteTypeFilter;
+      
+      return matchesSearch && matchesSubject && matchesType;
+    });
+  }, [incompleteCycles, incompleteSearchQuery, incompleteSubjectFilter, incompleteTypeFilter]);
+
   const SUBJECT_COLORS = {
     'Math': '#3b82f6',      // Blue
     'Science': '#10b981',   // Emerald
@@ -501,6 +597,12 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab('improvements')}
           >
             <TrendingUp size={18} /> Improvements Tracking
+          </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'incomplete-cycles' ? 'active' : ''}`}
+            onClick={() => setActiveTab('incomplete-cycles')}
+          >
+            <AlertCircle size={18} /> Incomplete Cycles
           </div>
         </nav>
 
@@ -862,6 +964,106 @@ export default function AdminDashboard() {
                     ))}
                     {improvementsList.length === 0 && (
                       <tr><td colSpan="13" className="text-center py-4 text-secondary">No assessments recorded yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && activeTab === 'incomplete-cycles' && (
+          <div className="fade-in">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Incomplete Assessment Cycles</h2>
+              <div className="flex gap-4 items-center">
+                {/* Search Input */}
+                <div style={{ position: 'relative', width: '250px' }}>
+                  <input
+                    type="text"
+                    className="input-field text-sm"
+                    placeholder="Search by Code or Name..."
+                    value={incompleteSearchQuery}
+                    onChange={(e) => setIncompleteSearchQuery(e.target.value)}
+                    style={{ paddingLeft: '32px' }}
+                  />
+                  <Search size={16} style={{ position: 'absolute', left: '10px', top: '12px', color: 'var(--text-secondary)' }} />
+                </div>
+                
+                {/* Subject Filter */}
+                <select 
+                  className="input-field" 
+                  style={{ width: 'auto', minWidth: '150px' }}
+                  value={incompleteSubjectFilter}
+                  onChange={(e) => setIncompleteSubjectFilter(e.target.value)}
+                >
+                  <option value="">All Subjects</option>
+                  {uniqueSubjects.map(sub => (
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))}
+                </select>
+
+                {/* Test Type Filter */}
+                <select
+                  className="input-field"
+                  style={{ width: 'auto', minWidth: '180px' }}
+                  value={incompleteTypeFilter}
+                  onChange={(e) => setIncompleteTypeFilter(e.target.value)}
+                >
+                  <option value="">All Incomplete Types</option>
+                  <option value="Pre-Test Only">Pre-Test Only</option>
+                  <option value="Post-Test Only">Post-Test Only</option>
+                </select>
+
+                {/* Export Excel Button */}
+                <button className="btn btn-secondary" onClick={exportIncompleteCycles}>
+                  <Download size={16} /> Export
+                </button>
+              </div>
+            </div>
+            
+            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Student Code</th>
+                      <th>Student Name</th>
+                      <th>Gender</th>
+                      <th>Grade</th>
+                      <th>Subject</th>
+                      <th>Status / Missing Test</th>
+                      <th>Recorded Score</th>
+                      <th>Max Score</th>
+                      <th>Date Recorded</th>
+                      <th>Teacher Name</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredIncompleteCycles.map((item, index) => (
+                      <tr key={index}>
+                        <td><span className="badge" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)' }}>{item.student?.student_code || 'N/A'}</span></td>
+                        <td className="font-medium">
+                          {item.student ? `${item.student.first_name} ${item.student.second_name} ${item.student.third_name} ${item.student.fourth_name}` : 'Unknown'}
+                        </td>
+                        <td>{item.student?.gender || 'N/A'}</td>
+                        <td>{item.student?.class_grade || 'N/A'}</td>
+                        <td className="font-semibold">{item.subject}</td>
+                        <td>
+                          {item.type === 'Pre-Test Only' ? (
+                            <span className="badge badge-warning">Missing Post-Test</span>
+                          ) : (
+                            <span className="badge badge-danger">Missing Pre-Test</span>
+                          )}
+                        </td>
+                        <td dir="ltr" className="font-bold text-primary">{item.score}</td>
+                        <td dir="ltr">{item.max_degree}</td>
+                        <td>{new Date(item.created_at).toLocaleDateString()}</td>
+                        <td>{teachers.find(t => t.id === item.teacher_id)?.full_name || 'Unknown'}</td>
+                      </tr>
+                    ))}
+                    {filteredIncompleteCycles.length === 0 && (
+                      <tr><td colSpan="10" className="text-center py-4 text-secondary">No incomplete assessment cycles found.</td></tr>
                     )}
                   </tbody>
                 </table>
