@@ -320,6 +320,102 @@ export default function AdminDashboard() {
       ]);
     });
 
+    // 1. Calculate Averages Row
+    const avgRow = ["Average / General", "", "", ""];
+    const subjects = ["English", "Math", "Arabic", "Science"];
+    
+    subjects.forEach(subject => {
+      let preSum = 0, preCount = 0;
+      let postSum = 0, postCount = 0;
+      let maxSum = 0, maxCount = 0;
+      let impSum = 0, impCount = 0;
+
+      Object.values(studentGroups).forEach(group => {
+        const a = group.assessments[subject];
+        if (a) {
+          if (a.pre_test_result !== undefined && a.pre_test_result !== null) {
+            preSum += a.pre_test_result;
+            preCount++;
+          }
+          if (a.post_test_result !== undefined && a.post_test_result !== null) {
+            postSum += a.post_test_result;
+            postCount++;
+          }
+          if (a.max_degree !== undefined && a.max_degree !== null) {
+            maxSum += a.max_degree;
+            maxCount++;
+          }
+          if (a.improvement_percentage !== undefined && a.improvement_percentage !== null) {
+            impSum += a.improvement_percentage;
+            impCount++;
+          }
+        }
+      });
+
+      avgRow.push(
+        preCount > 0 ? parseFloat((preSum / preCount).toFixed(1)) : "—",
+        postCount > 0 ? parseFloat((postSum / postCount).toFixed(1)) : "—",
+        maxCount > 0 ? parseFloat((maxSum / maxCount).toFixed(1)) : "—",
+        impCount > 0 ? `${(impSum / impCount).toFixed(1)}%` : "—"
+      );
+    });
+    rows.push(avgRow);
+
+    // 2. Calculate Indicators Stats for the summary table
+    const stats = {
+      Boys: { English: { tracked: 0, improved: 0 }, Math: { tracked: 0, improved: 0 }, Arabic: { tracked: 0, improved: 0 }, Science: { tracked: 0, improved: 0 }, Overall: { tracked: 0, improved: 0 } },
+      Girls: { English: { tracked: 0, improved: 0 }, Math: { tracked: 0, improved: 0 }, Arabic: { tracked: 0, improved: 0 }, Science: { tracked: 0, improved: 0 }, Overall: { tracked: 0, improved: 0 } }
+    };
+
+    Object.values(studentGroups).forEach(group => {
+      const s = group.student;
+      if (!s) return;
+      const gender = s.gender === 'Female' ? 'Girls' : 'Boys';
+      
+      let hasAnyTracked = false;
+      let hasAnyImproved = false;
+
+      subjects.forEach(subject => {
+        const a = group.assessments[subject];
+        if (a) {
+          hasAnyTracked = true;
+          stats[gender][subject].tracked++;
+          const isImproved = a.performance_status === 'Excellent' || a.performance_status === 'Good';
+          if (isImproved) {
+            stats[gender][subject].improved++;
+            hasAnyImproved = true;
+          }
+        }
+      });
+
+      if (hasAnyTracked) {
+        stats[gender].Overall.tracked++;
+        if (hasAnyImproved) {
+          stats[gender].Overall.improved++;
+        }
+      }
+    });
+
+    // Append blank rows and Indicator Title
+    rows.push([]);
+    rows.push([]);
+    rows.push(["SIGNIFICANT IMPROVEMENT INDICATOR BREAKDOWN (Improvement ≥ 50%)"]);
+    rows.push(["Gender", "Subject", "Tracked Students", "Significant Improvement Count", "% Showed Significant Improvement"]);
+
+    const appendIndicatorRow = (gender, subject) => {
+      const data = stats[gender][subject];
+      const percent = data.tracked > 0 ? `${((data.improved / data.tracked) * 100).toFixed(1)}%` : "0.0%";
+      rows.push([gender, subject, data.tracked, data.improved, percent]);
+    };
+
+    subjects.forEach(subject => {
+      appendIndicatorRow("Boys", subject);
+      appendIndicatorRow("Girls", subject);
+    });
+
+    appendIndicatorRow("Boys", "Overall (Any Subject)");
+    appendIndicatorRow("Girls", "Overall (Any Subject)");
+
     const ws = XLSX.utils.aoa_to_sheet(rows);
     
     // Set cell merges to match the user's Excel structure
@@ -651,6 +747,51 @@ export default function AdminDashboard() {
     const trackedIds = new Set(improvementsList.map(a => a.student_id || a.students?.id).filter(Boolean));
     return trackedIds.size;
   }, [improvementsList]);
+
+  // Calculate significant improvement indicator statistics
+  const indicatorStats = useMemo(() => {
+    const stats = {
+      Boys: { tracked: 0, improved: 0 },
+      Girls: { tracked: 0, improved: 0 }
+    };
+
+    // Group assessments by student ID
+    const studentGroups = {};
+    improvementsList.forEach(item => {
+      const studentId = item.student_id || item.students?.id;
+      if (!studentId) return;
+      if (!studentGroups[studentId]) {
+        studentGroups[studentId] = {
+          student: item.students || students.find(s => s.id === studentId),
+          improved: false,
+          tracked: false
+        };
+      }
+      studentGroups[studentId].tracked = true;
+      if (item.performance_status === 'Excellent' || item.performance_status === 'Good') {
+        studentGroups[studentId].improved = true;
+      }
+    });
+
+    Object.values(studentGroups).forEach(group => {
+      const s = group.student;
+      if (!s) return;
+      const gender = s.gender === 'Female' ? 'Girls' : 'Boys';
+      stats[gender].tracked++;
+      if (group.improved) {
+        stats[gender].improved++;
+      }
+    });
+
+    return stats;
+  }, [improvementsList, students]);
+
+  const boysPercent = indicatorStats.Boys.tracked > 0 
+    ? ((indicatorStats.Boys.improved / indicatorStats.Boys.tracked) * 100).toFixed(1) 
+    : '0.0';
+  const girlsPercent = indicatorStats.Girls.tracked > 0 
+    ? ((indicatorStats.Girls.improved / indicatorStats.Girls.tracked) * 100).toFixed(1) 
+    : '0.0';
 
   // Derive subject statistics from improvementsList
   const subjectStats = useMemo(() => {
@@ -1057,6 +1198,45 @@ export default function AdminDashboard() {
                 <button className="btn btn-secondary" onClick={exportImprovements}>
                   <Download size={16} /> Export
                 </button>
+              </div>
+            </div>
+
+            {/* Significant Improvement Indicators Grid */}
+            <div className="grid grid-cols-2 gap-6 mb-6 animate-fade-in">
+              <div className="glass-card flex items-center justify-between" style={{ borderLeft: '4px solid var(--accent-primary)', padding: '20px' }}>
+                <div className="flex items-center gap-4">
+                  <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: 'rgba(240, 140, 0, 0.1)', color: 'var(--accent-primary)' }}>
+                    <TrendingUp size={24} />
+                  </div>
+                  <div>
+                    <div className="text-secondary text-sm font-semibold">Boys Significant Improvement Indicator</div>
+                    <div className="text-xs text-secondary mt-1">
+                      {indicatorStats.Boys.improved} out of {indicatorStats.Boys.tracked} tracked boys showed ≥ 50% improvement
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-extrabold text-primary">{boysPercent}%</div>
+                  <div className="text-xs text-secondary mt-1">Target Met Ratio</div>
+                </div>
+              </div>
+
+              <div className="glass-card flex items-center justify-between" style={{ borderLeft: '4px solid var(--success)', padding: '20px' }}>
+                <div className="flex items-center gap-4">
+                  <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
+                    <TrendingUp size={24} />
+                  </div>
+                  <div>
+                    <div className="text-secondary text-sm font-semibold">Girls Significant Improvement Indicator</div>
+                    <div className="text-xs text-secondary mt-1">
+                      {indicatorStats.Girls.improved} out of {indicatorStats.Girls.tracked} tracked girls showed ≥ 50% improvement
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-extrabold text-success" style={{ color: 'var(--success)' }}>{girlsPercent}%</div>
+                  <div className="text-xs text-secondary mt-1">Target Met Ratio</div>
+                </div>
               </div>
             </div>
             
