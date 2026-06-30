@@ -49,7 +49,7 @@ export default function AdminDashboard() {
       const { count: studentCount } = await supabase.from('students').select('*', { count: 'exact', head: true });
       const { count: teacherCount } = await supabase.from('teachers').select('*', { count: 'exact', head: true });
       
-      const { data: assessments } = await supabase
+      const { data: assessments, error: assessmentsError } = await supabase
         .from('assessments')
         .select(`
           id, student_id, improvement_percentage, performance_status, difference_score, created_at, subject_id, teacher_id,
@@ -58,6 +58,15 @@ export default function AdminDashboard() {
         `)
         .order('created_at', { ascending: false })
         .limit(10000);
+      
+      console.log("[AdminDashboard] Assessments fetched:", assessments?.length, "Error:", assessmentsError);
+      if (assessmentsError) {
+        console.error("[AdminDashboard] Query error details:", assessmentsError);
+      }
+      if (assessments) {
+        const ghaith = assessments.filter(a => a.student_id === "a6f861aa-c23e-45b4-8446-338bca7acf01" || a.students?.id === "a6f861aa-c23e-45b4-8446-338bca7acf01");
+        console.log("[AdminDashboard] Ghaith assessments in fetched list:", ghaith);
+      }
       
       let avgImp = 0;
       let statusCounts = { 'Excellent': 0, 'Good': 0, 'Needs Improvement': 0 };
