@@ -268,7 +268,7 @@ export default function TeacherPortal() {
           if (assessmentsError) {
             console.error("[Search] Database assessments error details:", assessmentsError);
           } else {
-            console.log("[Search] assessmentsData details:", assessmentsData.map(a => ({ id: a.id, subject: a.subject_id, pre: a.pre_test_result, post: a.post_test_result })));
+            console.log("[Search] assessmentsData details:", JSON.stringify(assessmentsData.map(a => ({ id: a.id, subject: a.subject_id, pre: a.pre_test_result, post: a.post_test_result }))));
           }
 
           // Helper to normalize Arabic characters for robust comparison
