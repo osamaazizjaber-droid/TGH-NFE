@@ -953,7 +953,7 @@ export default function AdminDashboard() {
               <div className="glass-card">
                 <h3 className="font-bold text-lg mb-4">Performance Distribution</h3>
                 <div style={{ height: '300px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <PieChart>
                       <Pie
                         data={chartData}
@@ -981,7 +981,7 @@ export default function AdminDashboard() {
               <div className="glass-card">
                 <h3 className="font-bold text-lg mb-4">Tracked Students per Subject</h3>
                 <div style={{ height: '300px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={subjectStats}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
                       <XAxis dataKey="subject" stroke="var(--text-secondary)" />
