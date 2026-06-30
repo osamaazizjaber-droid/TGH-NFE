@@ -238,7 +238,8 @@ export default function TeacherPortal() {
           `first_name.ilike.*${wildcard}*`,
           `second_name.ilike.*${wildcard}*`,
           `third_name.ilike.*${wildcard}*`,
-          `fourth_name.ilike.*${wildcard}*`
+          `fourth_name.ilike.*${wildcard}*`,
+          `project_code.ilike.*${wildcard}*`
         );
       });
       const orFilter = orConditions.join(',');
@@ -292,7 +293,8 @@ export default function TeacherPortal() {
                 const normalizedTerm = normalizeArabic(term);
                 const matchName = fullName.includes(normalizedTerm);
                 const matchCode = studentCode.includes(normalizedTerm);
-                return matchName || matchCode;
+                const matchProject = student.project_code ? normalizeArabic(student.project_code).includes(normalizedTerm) : false;
+                return matchName || matchCode || matchProject;
               });
               
               if (!matchesAllTerms) {
@@ -566,7 +568,7 @@ export default function TeacherPortal() {
                 >
                   <div className="font-bold text-sm">{student.first_name} {student.second_name} {student.third_name} {student.fourth_name}</div>
                   <div className="text-secondary text-sm flex justify-between" style={{ marginTop: '4px' }}>
-                    <span>{student.student_code}</span>
+                    <span>{student.student_code} {student.project_code ? `(${student.project_code})` : ''}</span>
                     <span className="badge badge-warning">{student.class_grade}</span>
                   </div>
                   {student.governorate && student.district && (
@@ -597,7 +599,7 @@ export default function TeacherPortal() {
                   <div>
                     <h2 className="font-bold text-xl">{t('assessmentForm')}</h2>
                     <p className="text-secondary text-sm">
-                      {t('recordingFor')} <strong>{selectedStudent.first_name} {selectedStudent.second_name}</strong> ({selectedStudent.student_code})
+                      {t('recordingFor')} <strong>{selectedStudent.first_name} {selectedStudent.second_name}</strong> ({selectedStudent.student_code}){selectedStudent.project_code ? ` - ${selectedStudent.project_code}` : ''}
                     </p>
                   </div>
                 </div>

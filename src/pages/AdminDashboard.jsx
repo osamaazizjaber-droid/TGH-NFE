@@ -61,7 +61,7 @@ export default function AdminDashboard() {
           .select(`
             id, student_id, improvement_percentage, performance_status, difference_score, created_at, subject_id, teacher_id,
             pre_test_result, post_test_result, max_degree,
-            students ( id, student_code, first_name, second_name, third_name, fourth_name, gender, class_grade )
+            students ( id, student_code, first_name, second_name, third_name, fourth_name, gender, class_grade, project_code )
           `)
           .range(assessmentsPage * pageSize, (assessmentsPage + 1) * pageSize - 1)
           .order('created_at', { ascending: false });
@@ -277,7 +277,7 @@ export default function AdminDashboard() {
     
     // Row 1 Header (English, Math, Arabic, Science merged headers)
     rows.push([
-      "Student Code", "Student Name", "Gender", "Class",
+      "Student Code", "Student Name", "Gender", "Class", "Project Code",
       "English", "", "", "",
       "Math", "", "", "",
       "Arabic", "", "", "",
@@ -286,7 +286,7 @@ export default function AdminDashboard() {
     
     // Row 2 Sub-headers
     rows.push([
-      "", "", "", "",
+      "", "", "", "", "",
       "Pre-Test", "Post-Test", "Max Score", "Improvement %",
       "Pre-Test", "Post-Test", "Max Score", "Improvement %",
       "Pre-Test", "Post-Test", "Max Score", "Improvement %",
@@ -313,6 +313,7 @@ export default function AdminDashboard() {
         `${s.first_name || ''} ${s.second_name || ''} ${s.third_name || ''} ${s.fourth_name || ''}`.trim().replace(/\s+/g, ' ') || "Unknown",
         s.gender || "N/A",
         s.class_grade || "N/A", // Placed in the "Subject" Column (Column D) as represented in the template data
+        s.project_code || "N/A",
         ...getSubjectData("English"),
         ...getSubjectData("Math"),
         ...getSubjectData("Arabic"),
@@ -321,7 +322,7 @@ export default function AdminDashboard() {
     });
 
     // 1. Calculate Averages Row
-    const avgRow = ["Average / General", "", "", ""];
+    const avgRow = ["Average / General", "", "", "", ""];
     const subjects = ["English", "Math", "Arabic", "Science"];
     
     subjects.forEach(subject => {
@@ -423,11 +424,12 @@ export default function AdminDashboard() {
       { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // Student Code (merged vertically)
       { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // Student Name (merged vertically)
       { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // Gender (merged vertically)
-      { s: { r: 0, c: 3 }, e: { r: 1, c: 3 } }, // Subject / Grade (merged vertically)
-      { s: { r: 0, c: 4 }, e: { r: 0, c: 7 } }, // English (merged horizontally)
-      { s: { r: 0, c: 8 }, e: { r: 0, c: 11 } }, // Math (merged horizontally)
-      { s: { r: 0, c: 12 }, e: { r: 0, c: 15 } }, // Arabic (merged horizontally)
-      { s: { r: 0, c: 16 }, e: { r: 0, c: 19 } }  // Science (merged horizontally)
+      { s: { r: 0, c: 3 }, e: { r: 1, c: 3 } }, // Class / Grade (merged vertically)
+      { s: { r: 0, c: 4 }, e: { r: 1, c: 4 } }, // Project Code (merged vertically)
+      { s: { r: 0, c: 5 }, e: { r: 0, c: 8 } }, // English (merged horizontally)
+      { s: { r: 0, c: 9 }, e: { r: 0, c: 12 } }, // Math (merged horizontally)
+      { s: { r: 0, c: 13 }, e: { r: 0, c: 16 } }, // Arabic (merged horizontally)
+      { s: { r: 0, c: 17 }, e: { r: 0, c: 20 } }  // Science (merged horizontally)
     ];
 
     const wb = XLSX.utils.book_new();
@@ -451,6 +453,7 @@ export default function AdminDashboard() {
   const exportIncompleteCycles = () => {
     const exportData = filteredIncompleteCycles.map(item => ({
       'Student Code': item.student?.student_code || 'N/A',
+      'Project Code': item.student?.project_code || 'N/A',
       'Student Name': item.student ? `${item.student.first_name} ${item.student.second_name} ${item.student.third_name} ${item.student.fourth_name}`.trim().replace(/\s+/g, ' ') : 'Unknown',
       'Gender': item.student?.gender || 'N/A',
       'Class/Grade': item.student?.class_grade || 'N/A',
@@ -724,7 +727,8 @@ export default function AdminDashboard() {
       const student = item.student;
       const name = normalizeArabic(`${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.fourth_name || ''}`);
       const code = normalizeArabic(student.student_code || '');
-      const matchesSearch = name.includes(normalizedQuery) || code.includes(normalizedQuery);
+      const proj = normalizeArabic(student.project_code || '');
+      const matchesSearch = name.includes(normalizedQuery) || code.includes(normalizedQuery) || proj.includes(normalizedQuery);
       
       const matchesSubject = !incompleteSubjectFilter || item.subject === incompleteSubjectFilter;
       
@@ -1248,6 +1252,7 @@ export default function AdminDashboard() {
                       <th>Date</th>
                       <th>Teacher Name</th>
                       <th>Student Code</th>
+                      <th>Project Code</th>
                       <th>Student Name</th>
                       <th>Gender</th>
                       <th>Subject</th>
@@ -1266,6 +1271,7 @@ export default function AdminDashboard() {
                         <td>{new Date(item.created_at).toLocaleDateString()}</td>
                         <td>{teachers.find(t => t.id === item.teacher_id)?.full_name || 'Unknown'}</td>
                         <td><span className="badge" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)' }}>{item.students?.student_code || 'N/A'}</span></td>
+                        <td>{item.students?.project_code || '—'}</td>
                         <td className="font-medium">
                           {item.students ? `${item.students.first_name} ${item.students.second_name} ${item.students.third_name} ${item.students.fourth_name}` : 'Unknown'}
                         </td>
@@ -1289,7 +1295,7 @@ export default function AdminDashboard() {
                       </tr>
                     ))}
                     {improvementsList.length === 0 && (
-                      <tr><td colSpan="13" className="text-center py-4 text-secondary">No assessments recorded yet.</td></tr>
+                      <tr><td colSpan="14" className="text-center py-4 text-secondary">No assessments recorded yet.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1355,6 +1361,7 @@ export default function AdminDashboard() {
                   <thead>
                     <tr>
                       <th>Student Code</th>
+                      <th>Project Code</th>
                       <th>Student Name</th>
                       <th>Gender</th>
                       <th>Grade</th>
@@ -1370,6 +1377,7 @@ export default function AdminDashboard() {
                     {filteredIncompleteCycles.map((item, index) => (
                       <tr key={index}>
                         <td><span className="badge" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)' }}>{item.student?.student_code || 'N/A'}</span></td>
+                        <td>{item.student?.project_code || '—'}</td>
                         <td className="font-medium">
                           {item.student ? `${item.student.first_name} ${item.student.second_name} ${item.student.third_name} ${item.student.fourth_name}` : 'Unknown'}
                         </td>
@@ -1392,7 +1400,7 @@ export default function AdminDashboard() {
                       </tr>
                     ))}
                     {filteredIncompleteCycles.length === 0 && (
-                      <tr><td colSpan="10" className="text-center py-4 text-secondary">No incomplete assessment cycles found.</td></tr>
+                      <tr><td colSpan="11" className="text-center py-4 text-secondary">No incomplete assessment cycles found.</td></tr>
                     )}
                   </tbody>
                 </table>
