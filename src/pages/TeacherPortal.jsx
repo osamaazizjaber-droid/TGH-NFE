@@ -210,6 +210,7 @@ export default function TeacherPortal() {
   useEffect(() => {
     const fetchStudents = async () => {
       const trimmedQuery = searchQuery.trim();
+      console.log("[Search] Triggered with query:", trimmedQuery);
       if (!trimmedQuery) {
         setStudents([]);
         return;
@@ -217,29 +218,31 @@ export default function TeacherPortal() {
 
       // Split the search query into terms (e.g. "Osama Aziz" -> ["Osama", "Aziz"])
       const terms = trimmedQuery.split(/\s+/).filter(Boolean);
+      console.log("[Search] Terms:", terms);
       
       // Construct a broad OR query for Supabase to fetch candidates.
       // We will search for any candidate matching any term in any name field or student code.
       const orConditions = [];
       terms.forEach(term => {
         // Build wildcard term for Arabic compatibility
-        // Replacing Alef (ا,أ,إ,آ) with _ (matches any single character in Postgres ilike)
-        // Replacing Yeh/Alef Maksura (ي,ى) with _
-        // Replacing Teh Marbuta/Heh (ة,ه) with _
+        // Replacing Alef (ا,أ,إ,آ) with ? (matches any single character in PostgREST ilike)
+        // Replacing Yeh/Alef Maksura (ي,ى) with ?
+        // Replacing Teh Marbuta/Heh (ة,ه) with ?
         const wildcard = term
-          .replace(/[أإآا]/g, '_')
-          .replace(/[ىي]/g, '_')
-          .replace(/[ةه]/g, '_');
+          .replace(/[أإآا]/g, '?')
+          .replace(/[ىي]/g, '?')
+          .replace(/[ةه]/g, '?');
 
         orConditions.push(
-          `student_code.ilike.%${wildcard}%`,
-          `first_name.ilike.%${wildcard}%`,
-          `second_name.ilike.%${wildcard}%`,
-          `third_name.ilike.%${wildcard}%`,
-          `fourth_name.ilike.%${wildcard}%`
+          `student_code.ilike.*${wildcard}*`,
+          `first_name.ilike.*${wildcard}*`,
+          `second_name.ilike.*${wildcard}*`,
+          `third_name.ilike.*${wildcard}*`,
+          `fourth_name.ilike.*${wildcard}*`
         );
       });
       const orFilter = orConditions.join(',');
+      console.log("[Search] Generated orFilter for database:", orFilter);
 
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
@@ -247,13 +250,24 @@ export default function TeacherPortal() {
         .or(orFilter)
         .limit(100);
         
+      console.log("[Search] Database students count:", studentsData?.length, "Error:", studentsError);
+      if (studentsError) {
+        console.error("[Search] Database students error details:", studentsError);
+      }
+
       if (!studentsError && studentsData) {
         const studentIds = studentsData.map(s => s.id);
+        console.log("[Search] Student IDs found:", studentIds);
         if (studentIds.length > 0) {
           const { data: assessmentsData, error: assessmentsError } = await supabase
             .from('assessments')
             .select('*')
             .in('student_id', studentIds);
+
+          console.log("[Search] Database assessments count:", assessmentsData?.length, "Error:", assessmentsError);
+          if (assessmentsError) {
+            console.error("[Search] Database assessments error details:", assessmentsError);
+          }
 
           // Helper to normalize Arabic characters for robust comparison
           const normalizeArabic = (str) => {
@@ -274,10 +288,15 @@ export default function TeacherPortal() {
               
               const matchesAllTerms = terms.every(term => {
                 const normalizedTerm = normalizeArabic(term);
-                return fullName.includes(normalizedTerm) || studentCode.includes(normalizedTerm);
+                const matchName = fullName.includes(normalizedTerm);
+                const matchCode = studentCode.includes(normalizedTerm);
+                return matchName || matchCode;
               });
               
-              if (!matchesAllTerms) return false;
+              if (!matchesAllTerms) {
+                console.log(`[Search] Student ${student.student_code} filtered out: terms mismatch`);
+                return false;
+              }
 
               // 2. Completion Check: Exclude students who have fully completed all subjects
               const studentAssessments = assessmentsData.filter(a => a.student_id === student.id);
@@ -288,12 +307,17 @@ export default function TeacherPortal() {
                 return hasPre && hasPost;
               }).length;
 
-              return completedSubjectsCount < subjectsList.length;
+              const isComplete = completedSubjectsCount === subjectsList.length;
+              console.log(`[Search] Student ${student.student_code} (${student.first_name}): Completed ${completedSubjectsCount}/${subjectsList.length} subjects. Is complete?`, isComplete);
+              
+              return !isComplete;
             });
             
+            console.log("[Search] Final filtered students display count:", filtered.length, filtered);
             // Limit the final displayed list to a reasonable number (e.g., 15)
             setStudents(filtered.slice(0, 15));
           } else {
+            console.warn("[Search] Falling back to name-only filtering due to assessments fetch error");
             // If assessments fetch failed, fall back to basic name filtering
             const nameFiltered = studentsData.filter(student => {
               const fullName = normalizeArabic(`${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.fourth_name || ''}`);
