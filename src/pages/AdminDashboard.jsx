@@ -56,7 +56,8 @@ export default function AdminDashboard() {
           pre_test_result, post_test_result, max_degree,
           students ( id, student_code, first_name, second_name, third_name, fourth_name, gender, class_grade )
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
       
       let avgImp = 0;
       let statusCounts = { 'Excellent': 0, 'Good': 0, 'Needs Improvement': 0 };

@@ -300,7 +300,7 @@ export default function TeacherPortal() {
                 return false;
               }
 
-              // 2. Completion Check: Exclude students who have fully completed all subjects
+              // 2. Logging Completion Check (we do not exclude them from search results so teachers can view/find them)
               const studentAssessments = assessmentsData.filter(a => a.student_id === student.id);
               const completedSubjectsCount = subjectsList.filter(subject => {
                 const subAssessments = studentAssessments.filter(a => a.subject_id === subject);
@@ -312,7 +312,7 @@ export default function TeacherPortal() {
               const isComplete = completedSubjectsCount === subjectsList.length;
               console.log(`[Search] Student ${student.student_code} (${student.first_name}): Completed ${completedSubjectsCount}/${subjectsList.length} subjects. Is complete?`, isComplete);
               
-              return !isComplete;
+              return true; // Keep in search results even if fully completed
             });
             
             console.log("[Search] Final filtered students display count:", filtered.length, filtered);
