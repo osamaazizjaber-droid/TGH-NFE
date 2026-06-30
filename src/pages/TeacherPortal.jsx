@@ -209,16 +209,34 @@ export default function TeacherPortal() {
   // Search students (exclude fully completed ones)
   useEffect(() => {
     const fetchStudents = async () => {
-      if (!searchQuery.trim()) {
+      const trimmedQuery = searchQuery.trim();
+      if (!trimmedQuery) {
         setStudents([]);
         return;
       }
 
+      // Split the search query into terms (e.g. "Osama Aziz" -> ["Osama", "Aziz"])
+      const terms = trimmedQuery.split(/\s+/).filter(Boolean);
+      
+      // Construct a broad OR query for Supabase to fetch candidates.
+      // We will search for any candidate matching any term in any name field or student code.
+      const orConditions = [];
+      terms.forEach(term => {
+        orConditions.push(
+          `student_code.ilike.%${term}%`,
+          `first_name.ilike.%${term}%`,
+          `second_name.ilike.%${term}%`,
+          `third_name.ilike.%${term}%`,
+          `fourth_name.ilike.%${term}%`
+        );
+      });
+      const orFilter = orConditions.join(',');
+
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('*')
-        .or(`student_code.ilike.%${searchQuery}%,first_name.ilike.%${searchQuery}%`)
-        .limit(10);
+        .or(orFilter)
+        .limit(100);
         
       if (!studentsError && studentsData) {
         const studentIds = studentsData.map(s => s.id);
@@ -230,6 +248,18 @@ export default function TeacherPortal() {
 
           if (!assessmentsError && assessmentsData) {
             const filtered = studentsData.filter(student => {
+              // 1. Strict Multi-term Match: Check that every search term matches the student
+              const fullName = `${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.fourth_name || ''}`.toLowerCase();
+              const studentCode = (student.student_code || '').toLowerCase();
+              
+              const matchesAllTerms = terms.every(term => {
+                const lowerTerm = term.toLowerCase();
+                return fullName.includes(lowerTerm) || studentCode.includes(lowerTerm);
+              });
+              
+              if (!matchesAllTerms) return false;
+
+              // 2. Completion Check: Exclude students who have fully completed all subjects
               const studentAssessments = assessmentsData.filter(a => a.student_id === student.id);
               const completedSubjectsCount = subjectsList.filter(subject => {
                 const subAssessments = studentAssessments.filter(a => a.subject_id === subject);
@@ -237,11 +267,23 @@ export default function TeacherPortal() {
                 const hasPost = subAssessments.some(a => a.post_test_result !== null && a.post_test_result !== undefined && a.post_test_result !== '');
                 return hasPre && hasPost;
               }).length;
+
               return completedSubjectsCount < subjectsList.length;
             });
-            setStudents(filtered);
+            
+            // Limit the final displayed list to a reasonable number (e.g., 15)
+            setStudents(filtered.slice(0, 15));
           } else {
-            setStudents(studentsData);
+            // If assessments fetch failed, fall back to basic name filtering
+            const nameFiltered = studentsData.filter(student => {
+              const fullName = `${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.fourth_name || ''}`.toLowerCase();
+              const studentCode = (student.student_code || '').toLowerCase();
+              return terms.every(term => {
+                const lowerTerm = term.toLowerCase();
+                return fullName.includes(lowerTerm) || studentCode.includes(lowerTerm);
+              });
+            });
+            setStudents(nameFiltered.slice(0, 15));
           }
         } else {
           setStudents([]);
