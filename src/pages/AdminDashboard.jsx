@@ -259,21 +259,81 @@ export default function AdminDashboard() {
   };
 
   const exportImprovements = () => {
-    const exportData = filteredImprovements.map(item => ({
-      Date: new Date(item.created_at).toLocaleDateString(),
-      'Teacher Name': teachers.find(t => t.id === item.teacher_id)?.full_name || 'Unknown',
-      'Student Code': item.students?.student_code || 'N/A',
-      'Student Name': item.students ? `${item.students.first_name} ${item.students.second_name} ${item.students.third_name} ${item.students.fourth_name}`.trim().replace(/\s+/g, ' ') : 'Unknown',
-      Gender: item.students?.gender || 'N/A',
-      Subject: item.subject_id || 'N/A',
-      'Pre-Test': item.pre_test_result !== undefined ? item.pre_test_result : 'N/A',
-      'Post-Test': item.post_test_result !== undefined ? item.post_test_result : 'N/A',
-      'Max Score': item.max_degree !== undefined ? item.max_degree : 'N/A',
-      'Improvement %': item.improvement_percentage !== undefined ? `${item.improvement_percentage}%` : '0%',
-      'Diff. Score': item.difference_score !== undefined ? `+${item.difference_score}` : '0',
-      Status: item.performance_status || 'N/A'
-    }));
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    // Group assessments by student
+    const studentGroups = {};
+    filteredImprovements.forEach(item => {
+      const studentId = item.student_id || item.students?.id;
+      if (!studentId) return;
+      if (!studentGroups[studentId]) {
+        studentGroups[studentId] = {
+          student: item.students || students.find(s => s.id === studentId),
+          assessments: {}
+        };
+      }
+      studentGroups[studentId].assessments[item.subject_id] = item;
+    });
+
+    const rows = [];
+    
+    // Row 1 Header (English, Math, Arabic, Science merged headers)
+    rows.push([
+      "Student Code", "Student Name", "Gender", "Subject",
+      "English", "", "", "",
+      "Math", "", "", "",
+      "Arabic", "", "", "",
+      "Science", "", "", ""
+    ]);
+    
+    // Row 2 Sub-headers
+    rows.push([
+      "", "", "", "",
+      "Pre-Test", "Post-Test", "Max Score", "Improvement %",
+      "Pre-Test", "Post-Test", "Max Score", "Improvement %",
+      "Pre-Test", "Post-Test", "Max Score", "Improvement %",
+      "Pre-Test", "Post-Test", "Max Score", "Improvement %"
+    ]);
+
+    // Populate Student Rows
+    Object.values(studentGroups).forEach(group => {
+      const s = group.student;
+      if (!s) return;
+
+      const getSubjectData = (subject) => {
+        const a = group.assessments[subject];
+        return [
+          a?.pre_test_result !== undefined && a?.pre_test_result !== null ? a.pre_test_result : "—",
+          a?.post_test_result !== undefined && a?.post_test_result !== null ? a.post_test_result : "—",
+          a?.max_degree !== undefined && a?.max_degree !== null ? a.max_degree : "—",
+          a?.improvement_percentage !== undefined && a?.improvement_percentage !== null ? `${a.improvement_percentage}%` : "—"
+        ];
+      };
+
+      rows.push([
+        s.student_code || "N/A",
+        `${s.first_name || ''} ${s.second_name || ''} ${s.third_name || ''} ${s.fourth_name || ''}`.trim().replace(/\s+/g, ' ') || "Unknown",
+        s.gender || "N/A",
+        s.class_grade || "N/A", // Placed in the "Subject" Column (Column D) as represented in the template data
+        ...getSubjectData("English"),
+        ...getSubjectData("Math"),
+        ...getSubjectData("Arabic"),
+        ...getSubjectData("Science")
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    
+    // Set cell merges to match the user's Excel structure
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // Student Code (merged vertically)
+      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // Student Name (merged vertically)
+      { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // Gender (merged vertically)
+      { s: { r: 0, c: 3 }, e: { r: 1, c: 3 } }, // Subject / Grade (merged vertically)
+      { s: { r: 0, c: 4 }, e: { r: 0, c: 7 } }, // English (merged horizontally)
+      { s: { r: 0, c: 8 }, e: { r: 0, c: 11 } }, // Math (merged horizontally)
+      { s: { r: 0, c: 12 }, e: { r: 0, c: 15 } }, // Arabic (merged horizontally)
+      { s: { r: 0, c: 16 }, e: { r: 0, c: 19 } }  // Science (merged horizontally)
+    ];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Improvements");
     XLSX.writeFile(wb, "improvements_export.xlsx");
