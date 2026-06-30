@@ -222,12 +222,21 @@ export default function TeacherPortal() {
       // We will search for any candidate matching any term in any name field or student code.
       const orConditions = [];
       terms.forEach(term => {
+        // Build wildcard term for Arabic compatibility
+        // Replacing Alef (ا,أ,إ,آ) with _ (matches any single character in Postgres ilike)
+        // Replacing Yeh/Alef Maksura (ي,ى) with _
+        // Replacing Teh Marbuta/Heh (ة,ه) with _
+        const wildcard = term
+          .replace(/[أإآا]/g, '_')
+          .replace(/[ىي]/g, '_')
+          .replace(/[ةه]/g, '_');
+
         orConditions.push(
-          `student_code.ilike.%${term}%`,
-          `first_name.ilike.%${term}%`,
-          `second_name.ilike.%${term}%`,
-          `third_name.ilike.%${term}%`,
-          `fourth_name.ilike.%${term}%`
+          `student_code.ilike.%${wildcard}%`,
+          `first_name.ilike.%${wildcard}%`,
+          `second_name.ilike.%${wildcard}%`,
+          `third_name.ilike.%${wildcard}%`,
+          `fourth_name.ilike.%${wildcard}%`
         );
       });
       const orFilter = orConditions.join(',');
@@ -246,15 +255,26 @@ export default function TeacherPortal() {
             .select('*')
             .in('student_id', studentIds);
 
+          // Helper to normalize Arabic characters for robust comparison
+          const normalizeArabic = (str) => {
+            if (!str) return '';
+            return str
+              .toLowerCase()
+              .replace(/[أإآأ]/g, 'ا')
+              .replace(/ة/g, 'ه')
+              .replace(/ى/g, 'ي')
+              .replace(/[\u064B-\u065F]/g, ''); // Remove Tashkeel (diacritics)
+          };
+
           if (!assessmentsError && assessmentsData) {
             const filtered = studentsData.filter(student => {
-              // 1. Strict Multi-term Match: Check that every search term matches the student
-              const fullName = `${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.fourth_name || ''}`.toLowerCase();
-              const studentCode = (student.student_code || '').toLowerCase();
+              // 1. Strict Multi-term Match: Check that every search term matches the student (Arabic normalized)
+              const fullName = normalizeArabic(`${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.fourth_name || ''}`);
+              const studentCode = normalizeArabic(student.student_code || '');
               
               const matchesAllTerms = terms.every(term => {
-                const lowerTerm = term.toLowerCase();
-                return fullName.includes(lowerTerm) || studentCode.includes(lowerTerm);
+                const normalizedTerm = normalizeArabic(term);
+                return fullName.includes(normalizedTerm) || studentCode.includes(normalizedTerm);
               });
               
               if (!matchesAllTerms) return false;
@@ -276,11 +296,11 @@ export default function TeacherPortal() {
           } else {
             // If assessments fetch failed, fall back to basic name filtering
             const nameFiltered = studentsData.filter(student => {
-              const fullName = `${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.fourth_name || ''}`.toLowerCase();
-              const studentCode = (student.student_code || '').toLowerCase();
+              const fullName = normalizeArabic(`${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.fourth_name || ''}`);
+              const studentCode = normalizeArabic(student.student_code || '');
               return terms.every(term => {
-                const lowerTerm = term.toLowerCase();
-                return fullName.includes(lowerTerm) || studentCode.includes(lowerTerm);
+                const normalizedTerm = normalizeArabic(term);
+                return fullName.includes(normalizedTerm) || studentCode.includes(normalizedTerm);
               });
             });
             setStudents(nameFiltered.slice(0, 15));
