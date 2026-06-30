@@ -49,33 +49,53 @@ export default function AdminDashboard() {
       const { count: studentCount } = await supabase.from('students').select('*', { count: 'exact', head: true });
       const { count: teacherCount } = await supabase.from('teachers').select('*', { count: 'exact', head: true });
       
-      const { data: assessments, error: assessmentsError } = await supabase
-        .from('assessments')
-        .select(`
-          id, student_id, improvement_percentage, performance_status, difference_score, created_at, subject_id, teacher_id,
-          pre_test_result, post_test_result, max_degree,
-          students ( id, student_code, first_name, second_name, third_name, fourth_name, gender, class_grade )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(10000);
-      
-      console.log("[AdminDashboard] Assessments fetched:", assessments?.length, "Error:", assessmentsError);
-      if (assessmentsError) {
-        console.error("[AdminDashboard] Query error details:", assessmentsError);
+      // Fetch all assessments using pagination (bypasses server-side limit of 1000)
+      let allAssessments = [];
+      let assessmentsPage = 0;
+      const pageSize = 1000;
+      let hasMoreAssessments = true;
+
+      while (hasMoreAssessments) {
+        const { data: pageData, error: assessmentsError } = await supabase
+          .from('assessments')
+          .select(`
+            id, student_id, improvement_percentage, performance_status, difference_score, created_at, subject_id, teacher_id,
+            pre_test_result, post_test_result, max_degree,
+            students ( id, student_code, first_name, second_name, third_name, fourth_name, gender, class_grade )
+          `)
+          .range(assessmentsPage * pageSize, (assessmentsPage + 1) * pageSize - 1)
+          .order('created_at', { ascending: false });
+
+        if (assessmentsError) {
+          console.error("[AdminDashboard] Error fetching assessments page:", assessmentsError);
+          hasMoreAssessments = false;
+          break;
+        }
+
+        if (pageData && pageData.length > 0) {
+          allAssessments = [...allAssessments, ...pageData];
+          if (pageData.length < pageSize) {
+            hasMoreAssessments = false;
+          } else {
+            assessmentsPage++;
+          }
+        } else {
+          hasMoreAssessments = false;
+        }
       }
-      if (assessments) {
-        const ghaith = assessments.filter(a => a.student_id === "a6f861aa-c23e-45b4-8446-338bca7acf01" || a.students?.id === "a6f861aa-c23e-45b4-8446-338bca7acf01");
-        console.log("[AdminDashboard] Ghaith assessments in fetched list:", ghaith);
-      }
+
+      console.log("[AdminDashboard] Total assessments fetched paginated:", allAssessments.length);
+      const ghaith = allAssessments.filter(a => a.student_id === "a6f861aa-c23e-45b4-8446-338bca7acf01" || a.students?.id === "a6f861aa-c23e-45b4-8446-338bca7acf01");
+      console.log("[AdminDashboard] Ghaith assessments in fetched list:", ghaith);
       
       let avgImp = 0;
       let statusCounts = { 'Excellent': 0, 'Good': 0, 'Needs Improvement': 0 };
-      if (assessments && assessments.length > 0) {
-        setImprovementsList(assessments);
-        const sum = assessments.reduce((acc, curr) => acc + (curr.improvement_percentage || 0), 0);
-        avgImp = sum / assessments.length;
+      if (allAssessments.length > 0) {
+        setImprovementsList(allAssessments);
+        const sum = allAssessments.reduce((acc, curr) => acc + (curr.improvement_percentage || 0), 0);
+        avgImp = sum / allAssessments.length;
         
-        assessments.forEach(a => {
+        allAssessments.forEach(a => {
           if (statusCounts[a.performance_status] !== undefined) {
             statusCounts[a.performance_status]++;
           }
@@ -94,15 +114,46 @@ export default function AdminDashboard() {
         { name: 'Needs Imp.', value: statusCounts['Needs Improvement'] },
       ]);
 
-      // Fetch lists
-      const { data: studentsData } = await supabase.from('students').select('*').order('created_at', { ascending: false }).limit(1000);
-      if (studentsData) setStudents(studentsData);
+      // Fetch all students using pagination (bypasses server-side limit of 1000)
+      let allStudents = [];
+      let studentsPage = 0;
+      let hasMoreStudents = true;
+
+      while (hasMoreStudents) {
+        const { data: pageStudents, error: studentsErr } = await supabase
+          .from('students')
+          .select('*')
+          .range(studentsPage * pageSize, (studentsPage + 1) * pageSize - 1)
+          .order('created_at', { ascending: false });
+
+        if (studentsErr) {
+          console.error("[AdminDashboard] Error fetching students page:", studentsErr);
+          hasMoreStudents = false;
+          break;
+        }
+
+        if (pageStudents && pageStudents.length > 0) {
+          allStudents = [...allStudents, ...pageStudents];
+          if (pageStudents.length < pageSize) {
+            hasMoreStudents = false;
+          } else {
+            studentsPage++;
+          }
+        } else {
+          hasMoreStudents = false;
+        }
+      }
+
+      console.log("[AdminDashboard] Total students fetched paginated:", allStudents.length);
+      if (allStudents.length > 0) {
+        setStudents(allStudents);
+      }
 
       // Compute incomplete cycles (including Not Started / Missed subjects)
       const cycles = [];
       const subjectsList = ['Math', 'Science', 'Arabic', 'English'];
-      const studentList = studentsData || [];
-      const assessmentsList = assessments || [];
+      const studentList = allStudents;
+      const assessmentsList = allAssessments;
 
       studentList.forEach(student => {
         subjectsList.forEach(subject => {
