@@ -277,7 +277,7 @@ export default function AdminDashboard() {
     
     // Row 1 Header (English, Math, Arabic, Science merged headers)
     rows.push([
-      "Student Code", "Student Name", "Gender", "Subject",
+      "Student Code", "Student Name", "Gender", "Class",
       "English", "", "", "",
       "Math", "", "", "",
       "Arabic", "", "", "",
