@@ -225,13 +225,13 @@ export default function TeacherPortal() {
       const orConditions = [];
       terms.forEach(term => {
         // Build wildcard term for Arabic compatibility
-        // Replacing Alef (ا,أ,إ,آ) with ? (matches any single character in PostgREST ilike)
-        // Replacing Yeh/Alef Maksura (ي,ى) with ?
-        // Replacing Teh Marbuta/Heh (ة,ه) with ?
+        // Replacing Alef (ا,أ,إ,آ) with * (matches any characters in PostgREST ilike)
+        // Replacing Yeh/Alef Maksura (ي,ى) with *
+        // Replacing Teh Marbuta/Heh (ة,ه) with *
         const wildcard = term
-          .replace(/[أإآا]/g, '?')
-          .replace(/[ىي]/g, '?')
-          .replace(/[ةه]/g, '?');
+          .replace(/[أإآا]/g, '*')
+          .replace(/[ىي]/g, '*')
+          .replace(/[ةه]/g, '*');
 
         orConditions.push(
           `student_code.ilike.*${wildcard}*`,

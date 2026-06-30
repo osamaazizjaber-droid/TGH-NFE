@@ -552,11 +552,23 @@ export default function AdminDashboard() {
   const filteredImprovements = subjectFilter ? improvementsList.filter(i => i.subject_id === subjectFilter) : improvementsList;
 
   const filteredIncompleteCycles = useMemo(() => {
+    const normalizeArabic = (str) => {
+      if (!str) return '';
+      return str
+        .toLowerCase()
+        .replace(/[أإآأ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/[\u064B-\u065F]/g, ''); // Remove Tashkeel (diacritics)
+    };
+
+    const normalizedQuery = normalizeArabic(incompleteSearchQuery);
+
     return incompleteCycles.filter(item => {
       const student = item.student;
-      const name = `${student.first_name} ${student.second_name} ${student.third_name} ${student.fourth_name}`.toLowerCase();
-      const code = (student.student_code || '').toLowerCase();
-      const matchesSearch = name.includes(incompleteSearchQuery.toLowerCase()) || code.includes(incompleteSearchQuery.toLowerCase());
+      const name = normalizeArabic(`${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.fourth_name || ''}`);
+      const code = normalizeArabic(student.student_code || '');
+      const matchesSearch = name.includes(normalizedQuery) || code.includes(normalizedQuery);
       
       const matchesSubject = !incompleteSubjectFilter || item.subject === incompleteSubjectFilter;
       
