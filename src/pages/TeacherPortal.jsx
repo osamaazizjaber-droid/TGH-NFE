@@ -267,6 +267,8 @@ export default function TeacherPortal() {
           console.log("[Search] Database assessments count:", assessmentsData?.length, "Error:", assessmentsError);
           if (assessmentsError) {
             console.error("[Search] Database assessments error details:", assessmentsError);
+          } else {
+            console.log("[Search] assessmentsData details:", assessmentsData);
           }
 
           // Helper to normalize Arabic characters for robust comparison
