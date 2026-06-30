@@ -363,8 +363,8 @@ export default function AdminDashboard() {
 
     // 2. Calculate Indicators Stats for the summary table
     const stats = {
-      Boys: { English: { tracked: 0, improved: 0 }, Math: { tracked: 0, improved: 0 }, Arabic: { tracked: 0, improved: 0 }, Science: { tracked: 0, improved: 0 }, Overall: { tracked: 0, improved: 0 } },
-      Girls: { English: { tracked: 0, improved: 0 }, Math: { tracked: 0, improved: 0 }, Arabic: { tracked: 0, improved: 0 }, Science: { tracked: 0, improved: 0 }, Overall: { tracked: 0, improved: 0 } }
+      Boys: { English: { tracked: 0, improved: 0 }, Math: { tracked: 0, improved: 0 }, Arabic: { tracked: 0, improved: 0 }, Science: { tracked: 0, improved: 0 }, "Overall (Any Subject)": { tracked: 0, improved: 0 } },
+      Girls: { English: { tracked: 0, improved: 0 }, Math: { tracked: 0, improved: 0 }, Arabic: { tracked: 0, improved: 0 }, Science: { tracked: 0, improved: 0 }, "Overall (Any Subject)": { tracked: 0, improved: 0 } }
     };
 
     Object.values(studentGroups).forEach(group => {
@@ -389,9 +389,9 @@ export default function AdminDashboard() {
       });
 
       if (hasAnyTracked) {
-        stats[gender].Overall.tracked++;
+        stats[gender]["Overall (Any Subject)"].tracked++;
         if (hasAnyImproved) {
-          stats[gender].Overall.improved++;
+          stats[gender]["Overall (Any Subject)"].improved++;
         }
       }
     });
