@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Search, LogOut, CheckCircle, AlertCircle, Globe, Camera, X } from 'lucide-react';
+import { Search, LogOut, CheckCircle, AlertCircle, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Html5QrcodeScanner } from 'html5-qrcode';
 
 const translations = {
   en: {
@@ -102,34 +101,7 @@ export default function TeacherPortal() {
   const [loading, setLoading] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [error, setError] = useState(null);
-  const [isScanning, setIsScanning] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    let html5QrcodeScanner;
-    if (isScanning) {
-      html5QrcodeScanner = new Html5QrcodeScanner(
-        "reader",
-        { fps: 10, qrbox: {width: 250, height: 150} },
-        false
-      );
-      html5QrcodeScanner.render(
-        (decodedText) => {
-          setSearchQuery(decodedText);
-          setIsScanning(false);
-          html5QrcodeScanner.clear();
-        },
-        (error) => {
-          // ignore frame errors
-        }
-      );
-    }
-    return () => {
-      if (html5QrcodeScanner) {
-        html5QrcodeScanner.clear().catch(e => console.log(e));
-      }
-    };
-  }, [isScanning]);
 
   // Fetch student's existing assessments on selection
   useEffect(() => {
@@ -513,75 +485,52 @@ export default function TeacherPortal() {
           {/* Phase 1: Search & Select Student */}
           {!selectedStudent && (
             <div className="glass-card flex-col gap-4">
-            <h2 className="font-bold text-lg mb-4">{t('selectStudent')}</h2>
-            <div className="flex gap-2 mb-4">
-              <div className="input-group relative" style={{ marginBottom: 0, flex: 1 }}>
-                <Search size={18} style={{ position: 'absolute', [lang === 'ar' ? 'right' : 'left']: '12px', top: '12px', color: 'var(--text-secondary)' }} />
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder={t('searchPlaceholder')}
-                  style={{ [lang === 'ar' ? 'paddingRight' : 'paddingLeft']: '40px' }}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+              <h2 className="font-bold text-lg mb-4">{t('selectStudent')}</h2>
+              <div className="flex gap-2 mb-4">
+                <div className="input-group relative" style={{ marginBottom: 0, flex: 1 }}>
+                  <Search size={18} style={{ position: 'absolute', [lang === 'ar' ? 'right' : 'left']: '12px', top: '12px', color: 'var(--text-secondary)' }} />
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder={t('searchPlaceholder')}
+                    style={{ [lang === 'ar' ? 'paddingRight' : 'paddingLeft']: '40px' }}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
               </div>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => setIsScanning(true)}
-                title="Scan Barcode"
-                style={{ padding: '10px' }}
-              >
-                <Camera size={20} />
-              </button>
-            </div>
-
-            {isScanning && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                <div style={{ background: 'white', padding: '20px', borderRadius: '12px', width: '100%', maxWidth: '500px', position: 'relative' }}>
-                  <button 
-                    onClick={() => setIsScanning(false)}
-                    style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#000' }}
+              
+              <div style={{ marginTop: '16px', maxHeight: '400px', overflowY: 'auto' }}>
+                {students.map(student => (
+                  <div 
+                    key={student.id} 
+                    onClick={() => setSelectedStudent(student)}
+                    style={{ 
+                      padding: '12px', 
+                      borderBottom: '1px solid var(--border-color)', 
+                      cursor: 'pointer',
+                      backgroundColor: selectedStudent?.id === student.id ? 'var(--accent-light)' : 'transparent',
+                      borderRadius: '8px',
+                      marginBottom: '4px'
+                    }}
+                    className="hover-bg"
                   >
-                    <X size={24} />
-                  </button>
-                  <h3 style={{ marginBottom: '16px', color: '#000', fontWeight: 'bold' }}>Scan Student Barcode</h3>
-                  <div id="reader" style={{ width: '100%' }}></div>
-                </div>
-              </div>
-            )}
-            
-            <div style={{ marginTop: '16px', maxHeight: '400px', overflowY: 'auto' }}>
-              {students.map(student => (
-                <div 
-                  key={student.id} 
-                  onClick={() => setSelectedStudent(student)}
-                  style={{ 
-                    padding: '12px', 
-                    borderBottom: '1px solid var(--border-color)', 
-                    cursor: 'pointer',
-                    backgroundColor: selectedStudent?.id === student.id ? 'var(--accent-light)' : 'transparent',
-                    borderRadius: '8px',
-                    marginBottom: '4px'
-                  }}
-                  className="hover-bg"
-                >
-                  <div className="font-bold text-sm">{student.first_name} {student.second_name} {student.third_name} {student.fourth_name}</div>
-                  <div className="text-secondary text-sm flex justify-between" style={{ marginTop: '4px' }}>
-                    <span>{student.student_code} {student.project_code ? `(${student.project_code})` : ''}</span>
-                    <span className="badge badge-warning">{student.class_grade}</span>
-                  </div>
-                  {student.governorate && student.district && (
-                    <div className="text-secondary text-xs" style={{ marginTop: '4px', opacity: 0.8 }}>
-                      {student.governorate} - {student.district} {student.village ? `- ${student.village}` : ''}
+                    <div className="font-bold text-sm">{student.first_name} {student.second_name} {student.third_name} {student.fourth_name}</div>
+                    <div className="text-secondary text-sm flex justify-between" style={{ marginTop: '4px' }}>
+                      <span>{student.student_code} {student.project_code ? `(${student.project_code})` : ''}</span>
+                      <span className="badge badge-warning">{student.class_grade}</span>
                     </div>
-                  )}
-                </div>
-              ))}
-              {searchQuery && students.length === 0 && (
-                <div className="text-secondary text-sm text-center py-4">{t('noStudents')}</div>
-              )}
-            </div>
+                    {student.governorate && student.district && (
+                      <div className="text-secondary text-xs" style={{ marginTop: '4px', opacity: 0.8 }}>
+                        {student.governorate} - {student.district} {student.village ? `- ${student.village}` : ''}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {searchQuery && students.length === 0 && (
+                  <div className="text-secondary text-sm text-center py-4">{t('noStudents')}</div>
+                )}
+              </div>
             </div>
           )}
 
@@ -595,116 +544,116 @@ export default function TeacherPortal() {
               >
                 {lang === 'ar' ? '→ العودة للبحث' : '← Back to Search'}
               </button>
-                <div className="flex justify-between items-center mb-6" style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
-                  <div>
-                    <h2 className="font-bold text-xl">{t('assessmentForm')}</h2>
-                    <p className="text-secondary text-sm">
-                      {t('recordingFor')} <strong>{selectedStudent.first_name} {selectedStudent.second_name}</strong> ({selectedStudent.student_code}){selectedStudent.project_code ? ` - ${selectedStudent.project_code}` : ''}
-                    </p>
-                  </div>
+              <div className="flex justify-between items-center mb-6" style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
+                <div>
+                  <h2 className="font-bold text-xl">{t('assessmentForm')}</h2>
+                  <p className="text-secondary text-sm">
+                    {t('recordingFor')} <strong>{selectedStudent.first_name} {selectedStudent.second_name}</strong> ({selectedStudent.student_code}){selectedStudent.project_code ? ` - ${selectedStudent.project_code}` : ''}
+                  </p>
                 </div>
+              </div>
 
-                {submitSuccess && (
-                  <div className="flex items-center gap-2 mb-4" style={{ padding: '12px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', borderRadius: '8px' }}>
-                    <CheckCircle size={18} />
-                    <span>{t('successMsg')}</span>
-                  </div>
-                )}
-                
-                {error && (
-                  <div className="flex items-center gap-2 mb-4" style={{ padding: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: '8px' }}>
-                    <AlertCircle size={18} />
-                    <span>{error}</span>
-                  </div>
-                )}
+              {submitSuccess && (
+                <div className="flex items-center gap-2 mb-4" style={{ padding: '12px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', borderRadius: '8px' }}>
+                  <CheckCircle size={18} />
+                  <span>{t('successMsg')}</span>
+                </div>
+              )}
+              
+              {error && (
+                <div className="flex items-center gap-2 mb-4" style={{ padding: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: '8px' }}>
+                  <AlertCircle size={18} />
+                  <span>{error}</span>
+                </div>
+              )}
 
-                {allCompleted ? (
-                  <div className="flex flex-col items-center gap-4 text-center py-8" style={{ color: 'var(--success)', border: '1px dashed var(--success)', borderRadius: '12px', padding: '24px' }}>
-                    <CheckCircle size={48} />
-                    <p className="font-bold text-lg">{t('allSubjectsCompleted')}</p>
-                  </div>
-                ) : (
-                  <form onSubmit={submitAssessment}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="input-label">{t('subject')}</label>
-                          <select name="subject" className="input-field" value={assessmentData.subject} onChange={handleAssessmentChange}>
-                            {(!subjectsStatus['Math']?.pre || !subjectsStatus['Math']?.post) && <option value="Math">{t('math')}</option>}
-                            {(!subjectsStatus['Science']?.pre || !subjectsStatus['Science']?.post) && <option value="Science">{t('science')}</option>}
-                            {(!subjectsStatus['Arabic']?.pre || !subjectsStatus['Arabic']?.post) && <option value="Arabic">{t('arabic')}</option>}
-                            {(!subjectsStatus['English']?.pre || !subjectsStatus['English']?.post) && <option value="English">{t('english')}</option>}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="input-label">{t('maxDegree')}</label>
-                          <input type="number" name="max_degree" className="input-field" min="1" value={assessmentData.max_degree} onChange={handleAssessmentChange} required />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4" style={{ marginBottom: '24px' }}>
+              {allCompleted ? (
+                <div className="flex flex-col items-center gap-4 text-center py-8" style={{ color: 'var(--success)', border: '1px dashed var(--success)', borderRadius: '12px', padding: '24px' }}>
+                  <CheckCircle size={48} />
+                  <p className="font-bold text-lg">{t('allSubjectsCompleted')}</p>
+                </div>
+              ) : (
+                <form onSubmit={submitAssessment}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="input-label">{t('preTest')}</label>
-                        <input 
-                          type="number" 
-                          name="pre_test" 
-                          className="input-field" 
-                          step="0.1" 
-                          max={assessmentData.max_degree} 
-                          value={assessmentData.pre_test} 
-                          onChange={handleAssessmentChange} 
-                          disabled={subjectsStatus[assessmentData.subject]?.pre} 
-                          placeholder={subjectsStatus[assessmentData.subject]?.pre ? 'Recorded' : ''}
-                        />
+                        <label className="input-label">{t('subject')}</label>
+                        <select name="subject" className="input-field" value={assessmentData.subject} onChange={handleAssessmentChange}>
+                          {(!subjectsStatus['Math']?.pre || !subjectsStatus['Math']?.post) && <option value="Math">{t('math')}</option>}
+                          {(!subjectsStatus['Science']?.pre || !subjectsStatus['Science']?.post) && <option value="Science">{t('science')}</option>}
+                          {(!subjectsStatus['Arabic']?.pre || !subjectsStatus['Arabic']?.post) && <option value="Arabic">{t('arabic')}</option>}
+                          {(!subjectsStatus['English']?.pre || !subjectsStatus['English']?.post) && <option value="English">{t('english')}</option>}
+                        </select>
                       </div>
                       <div>
-                        <label className="input-label">{t('postTest')}</label>
-                        <input 
-                          type="number" 
-                          name="post_test" 
-                          className="input-field" 
-                          step="0.1" 
-                          max={assessmentData.max_degree} 
-                          value={assessmentData.post_test} 
-                          onChange={handleAssessmentChange} 
-                          disabled={subjectsStatus[assessmentData.subject]?.post}
-                          placeholder={subjectsStatus[assessmentData.subject]?.post ? 'Recorded' : ''}
-                        />
+                        <label className="input-label">{t('maxDegree')}</label>
+                        <input type="number" name="max_degree" className="input-field" min="1" value={assessmentData.max_degree} onChange={handleAssessmentChange} required />
                       </div>
                     </div>
+                  </div>
 
-                    <div className="p-4 mb-6" style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                      <h3 className="font-bold text-sm mb-3 text-secondary">{t('calculatedMetrics')}</h3>
-                      {metrics.complete ? (
-                        <div className="grid grid-cols-3 gap-4">
-                          <div>
-                            <div className="text-secondary text-sm">{t('improvement')}</div>
-                            <div className="font-bold text-lg text-primary" dir="ltr">{metrics.improvementPercent}%</div>
-                          </div>
-                          <div>
-                            <div className="text-secondary text-sm">{t('difference')}</div>
-                            <div className="font-bold text-lg text-primary" dir="ltr">+{metrics.diff} {t('pts')}</div>
-                          </div>
-                          <div>
-                            <div className="text-secondary text-sm">{t('status')}</div>
-                            <span className={`badge ${metrics.status === 'excellent' ? 'badge-success' : metrics.status === 'good' ? 'badge-warning' : 'badge-danger'}`} style={{ marginTop: '4px' }}>
-                              {t(metrics.status)}
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-secondary text-sm" style={{ opacity: 0.8 }}>
-                          {t('metricsPlaceholder')}
-                        </div>
-                      )}
+                  <div className="grid grid-cols-2 gap-4" style={{ marginBottom: '24px' }}>
+                    <div>
+                      <label className="input-label">{t('preTest')}</label>
+                      <input 
+                        type="number" 
+                        name="pre_test" 
+                        className="input-field" 
+                        step="0.1" 
+                        max={assessmentData.max_degree} 
+                        value={assessmentData.pre_test} 
+                        onChange={handleAssessmentChange} 
+                        disabled={subjectsStatus[assessmentData.subject]?.pre} 
+                        placeholder={subjectsStatus[assessmentData.subject]?.pre ? 'Recorded' : ''}
+                      />
                     </div>
+                    <div>
+                      <label className="input-label">{t('postTest')}</label>
+                      <input 
+                        type="number" 
+                        name="post_test" 
+                        className="input-field" 
+                        step="0.1" 
+                        max={assessmentData.max_degree} 
+                        value={assessmentData.post_test} 
+                        onChange={handleAssessmentChange} 
+                        disabled={subjectsStatus[assessmentData.subject]?.post}
+                        placeholder={subjectsStatus[assessmentData.subject]?.post ? 'Recorded' : ''}
+                      />
+                    </div>
+                  </div>
 
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '14px', fontSize: '1.1rem' }} disabled={loading}>
-                      {loading ? '...' : t('submit')}
-                    </button>
-                  </form>
-                )}
+                  <div className="p-4 mb-6" style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                    <h3 className="font-bold text-sm mb-3 text-secondary">{t('calculatedMetrics')}</h3>
+                    {metrics.complete ? (
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <div className="text-secondary text-sm">{t('improvement')}</div>
+                          <div className="font-bold text-lg text-primary" dir="ltr">{metrics.improvementPercent}%</div>
+                        </div>
+                        <div>
+                          <div className="text-secondary text-sm">{t('difference')}</div>
+                          <div className="font-bold text-lg text-primary" dir="ltr">+{metrics.diff} {t('pts')}</div>
+                        </div>
+                        <div>
+                          <div className="text-secondary text-sm">{t('status')}</div>
+                          <span className={`badge ${metrics.status === 'excellent' ? 'badge-success' : metrics.status === 'good' ? 'badge-warning' : 'badge-danger'}`} style={{ marginTop: '4px' }}>
+                            {t(metrics.status)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-secondary text-sm" style={{ opacity: 0.8 }}>
+                        {t('metricsPlaceholder')}
+                      </div>
+                    )}
+                  </div>
+
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '14px', fontSize: '1.1rem' }} disabled={loading}>
+                    {loading ? '...' : t('submit')}
+                  </button>
+                </form>
+              )}
             </div>
           )}
         </div>

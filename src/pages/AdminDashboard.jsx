@@ -4,10 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { getGovernorates, getDistricts, getSubdistricts } from '../lib/locations';
 import { 
   Users, BookOpen, TrendingUp, LogOut, Download, Upload, 
-  Trash2, Edit, Plus, Printer, AlertCircle, Search
+  Trash2, Edit, Plus, AlertCircle, Search
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import Barcode from 'react-barcode';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
@@ -1079,9 +1078,6 @@ export default function AdminDashboard() {
                   <Upload size={16} /> Import Excel
                   <input type="file" accept=".xlsx, .csv" style={{ display: 'none' }} onChange={importStudents} />
                 </label>
-                <button className="btn btn-secondary" onClick={() => window.print()}>
-                  <Printer size={16} /> Print IDs
-                </button>
                 <button className="btn btn-secondary" onClick={exportStudents}>
                   <Download size={16} /> Export
                 </button>
@@ -1564,44 +1560,6 @@ export default function AdminDashboard() {
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
-
-      {/* Hidden Print Area for Barcode List */}
-      <div className="print-area">
-        <div style={{ textAlign: 'center', marginBottom: '20px', width: '100%' }}>
-          <img src="/logo.png" alt="Logo" style={{ height: '60px', marginBottom: '10px' }} />
-          <h2 style={{ color: '#000', margin: 0 }}>Student Barcode List</h2>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', color: '#000' }}>
-          <thead>
-            <tr>
-              <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>#</th>
-              <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Student Name</th>
-              <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Grade / Gender</th>
-              <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>Student Code</th>
-              <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>Barcode</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStudents.map((student, index) => (
-              <tr key={student.id} style={{ pageBreakInside: 'avoid' }}>
-                <td style={{ border: '1px solid #000', padding: '8px' }}>{index + 1}</td>
-                <td style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold' }}>
-                  {student.first_name} {student.second_name} {student.third_name} {student.fourth_name}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '8px' }}>
-                  {student.class_grade} | {student.gender}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
-                  {student.student_code}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
-                  <Barcode value={student.student_code || 'INVALID'} width={1.2} height={30} displayValue={false} margin={0} background="#ffffff" lineColor="#000000" />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
